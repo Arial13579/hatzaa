@@ -4,7 +4,7 @@
     const T = window.TENANT, PF = window.PLATFORM || {};
     const B = Object.assign({ name: '', tagline: '', email: '', phone: '', businessId: '' }, T.business || {});
     const P = T.pricing || {};
-    const L = Object.assign({ service: 'חבילה', included: 'מה כלול', docTitle: 'הצעת מחיר והסכם' }, T.labels || {});
+    const L = Object.assign({ service: 'חבילה', included: 'מה כלול', docTitle: 'הצעת מחיר והסכם', balance: 'יתרה בסיום', alwaysIncluded: 'כלול תמיד' }, T.labels || {});
     const SUPPLIER_EMAIL = B.email;
     const WEB3FORMS_KEY = T.web3formsKey || '';
     const esc = Brand.esc, $ = id => document.getElementById(id);
@@ -60,18 +60,47 @@
         const p = b64UrlDecode(dataParam).split('|');
         if (p.length < 9) throw new Error('bad link');
         c = { name: p[0], type: p[1], location: p[2], date: p[3], startTime: p[4], endTime: p[5], guests: p[6] || '',
-              price: Number(p[7]) || 0, deposit: Number(p[8]) || 0, notes: p[9] || '', quoteId: p[10] || '', service: p[11] || P.DEFAULT_SERVICE };
+              price: Number(p[7]) || 0, deposit: Number(p[8]) || 0, notes: p[9] || '', quoteId: p[10] || '', service: p[11] || P.DEFAULT_SERVICE,
+              // מצב פריטים: שם^כמות^מחיר ליחידה, מופרדים ב-~ (זהה ל-Core.shareUrl במערכת הספקים)
+              items: (p[12] || '').split('~').filter(Boolean).map(x => { const [label, qty, price] = x.split('^'); return { label: label || '', qty: Number(qty) || 1, price: Number(price) || 0 }; }),
+              discount: Number(p[13]) || 0 };
     } catch (err) {
         console.error(err);
         renderShell(`<div class="card card-b rise" style="text-align:center;color:var(--bad);font-weight:700">הקישור אינו תקין. בקשו מ-${esc(B.name)} קישור חדש.</div>`);
         return;
     }
 
-    const svc = serviceOf(c.service), act = hoursWord(c.startTime, c.endTime), bal = c.price - c.deposit;
-    const PKG_ITEMS = [ `${act || plainHours(svc.hours || 0)} ${svc.lead || ''}`.trim() ].concat(svc.items || [], P.COMMON_ITEMS || []).filter(Boolean);
+    const ITEMS_MODE = c.items.length > 0;
+    const svc = ITEMS_MODE ? { label: '', items: [] } : serviceOf(c.service), act = hoursWord(c.startTime, c.endTime), bal = c.price - c.deposit;
+    const PKG_ITEMS = ITEMS_MODE ? (P.COMMON_ITEMS || []).filter(Boolean)
+        : [ `${act || plainHours(svc.hours || 0)} ${svc.lead || ''}`.trim() ].concat(svc.items || [], P.COMMON_ITEMS || []).filter(Boolean);
+    const catalogDesc = label => ((P.CATALOG || []).find(x => x.label === label) || {}).desc || '';
+    const lineTotal = i => (Number(i.qty) || 1) * (Number(i.price) || 0);
+    const subtotal = c.items.reduce((s, i) => s + lineTotal(i), 0);
+    const whatLine = ITEMS_MODE ? (c.type || L.docTitle) : `${svc.label}${c.type ? ' · ' + c.type : ''}`;
+    const timeText = c.startTime && c.endTime ? `${c.startTime}–${c.endTime}` : c.startTime ? `החל מ-${c.startTime}` : '';
     const shortId = c.quoteId ? '#' + c.quoteId.slice(-6).toUpperCase() : '';
     const money = n => '₪' + Number(n || 0).toLocaleString();
     document.title = `${B.name} | ${L.docTitle} · ${c.name}`;
+
+    function itemsHtml(){
+        return `<table class="items-tbl"><caption class="sr">פירוט ההצעה</caption>
+            <thead><tr><th scope="col">פריט</th><th scope="col" class="n">כמות</th><th scope="col" class="n">סה"כ</th></tr></thead>
+            <tbody>${c.items.map(i => { const d = catalogDesc(i.label); return `<tr><td><b>${esc(i.label)}</b>${d ? `<small>${esc(d)}</small>` : ''}</td><td class="n">${i.qty > 1 ? `${i.qty} × ${money(i.price)}` : '1'}</td><td class="n">${money(lineTotal(i))}</td></tr>`; }).join('')}</tbody>
+            <tfoot>${c.discount ? `<tr><td colspan="2">סכום ביניים</td><td class="n">${money(subtotal)}</td></tr><tr class="disc"><td colspan="2">הנחה</td><td class="n">−${money(c.discount)}</td></tr>` : ''}
+            <tr class="tot"><td colspan="2">סה"כ</td><td class="n">${money(c.price)}</td></tr></tfoot></table>`;
+    }
+    function contactHtml(){
+        const tel = String(B.phone || '').replace(/[^\d+]/g, ''), wa = tel.replace(/^\+/, '').replace(/^0/, '972');
+        if (!B.phone && !B.email) return '';
+        return `<section class="card rise contact" aria-labelledby="contact-h">
+            <div class="card-h"><span class="n"><i data-i="chat"></i></span><h2 id="contact-h">יש שאלה? אנחנו כאן</h2></div>
+            <div class="card-b"><div class="contact-btns">
+                ${B.phone ? `<a class="btn btn-light" href="tel:${esc(tel)}"><i data-i="phone"></i><span>התקשרו <span class="ltr">${esc(B.phone)}</span></span></a>
+                <a class="btn btn-light" href="https://wa.me/${esc(wa)}?text=${encodeURIComponent(`היי, לגבי הצעת המחיר עבור ${c.name}${shortId ? ' (' + shortId + ')' : ''}`)}" target="_blank" rel="noopener"><i data-i="chat"></i><span>וואטסאפ</span></a>` : ''}
+                ${B.email ? `<a class="btn btn-light mail" href="mailto:${esc(B.email)}?subject=${encodeURIComponent('הצעת מחיר ' + (shortId || '') + ' · ' + c.name)}"><i data-i="mail"></i><span class="ltr">${esc(B.email)}</span></a>` : ''}
+            </div></div></section>`;
+    }
 
     renderShell(`
         <section class="card rise" aria-label="פרטי ההצעה">
@@ -79,33 +108,35 @@
                 <div class="row"><span class="pill">${esc(L.docTitle)}</span><span class="qid ltr">${esc(shortId)}</span></div>
                 <p class="for">לכבוד</p>
                 <h1>${esc(c.name)}</h1>
-                <div class="what">${esc(svc.label)}${c.type ? ' · ' + esc(c.type) : ''}</div>
+                <div class="what">${esc(whatLine)}</div>
             </div>
             <div class="facts">
                 <div class="fact"><span class="k"><i data-i="party"></i>סוג האירוע</span><span class="v">${esc(c.type)}</span></div>
                 <div class="fact"><span class="k"><i data-i="calendar"></i>תאריך</span><span class="v ltr" style="text-align:right">${esc(c.date)}</span></div>
                 <div class="fact"><span class="k"><i data-i="pin"></i>מיקום</span><span class="v">${esc(c.location)}</span></div>
-                <div class="fact"><span class="k"><i data-i="clock"></i>שעות</span><span class="v"><span class="ltr">${esc(c.startTime)}–${esc(c.endTime)}</span>${act ? `<small>${esc(act)}</small>` : ''}</span></div>
-                <div class="fact"><span class="k"><i data-i="users"></i>מוזמנים</span><span class="v">${c.guests ? 'עד ' + Number(c.guests).toLocaleString() : '—'}</span></div>
-                <div class="fact"><span class="k"><i data-i="file"></i>${esc(L.service)}</span><span class="v">${esc(svc.label)}</span></div>
+                ${timeText || !ITEMS_MODE ? `<div class="fact"><span class="k"><i data-i="clock"></i>${c.endTime ? 'שעות' : 'שעה'}</span><span class="v"><span class="ltr">${esc(timeText || '—')}</span>${act ? `<small>${esc(act)}</small>` : ''}</span></div>` : ''}
+                ${c.guests || !ITEMS_MODE ? `<div class="fact"><span class="k"><i data-i="users"></i>מוזמנים</span><span class="v">${c.guests ? 'עד ' + Number(c.guests).toLocaleString() : '—'}</span></div>` : ''}
+                ${ITEMS_MODE ? '' : `<div class="fact"><span class="k"><i data-i="file"></i>${esc(L.service)}</span><span class="v">${esc(svc.label)}</span></div>`}
             </div>
             <div class="money">
                 <div class="total"><div class="k">מחיר כולל</div><div class="v">${money(c.price)}</div></div>
                 <div><div class="k">מקדמה</div><div class="v">${money(c.deposit)}</div></div>
-                <div><div class="k">יתרה בסיום</div><div class="v">${money(bal)}</div></div>
+                <div><div class="k">${esc(L.balance)}</div><div class="v">${money(bal)}</div></div>
             </div>
             ${c.notes.trim() ? `<div class="notes"><div class="k"><i data-i="info"></i>הערות וסיכומים</div><p>${esc(c.notes)}</p></div>` : ''}
         </section>
 
         <section class="card rise">
             <div class="card-h"><span class="n">1</span><h2>${esc(L.included)}</h2></div>
-            <div class="card-b"><ul class="incl">${PKG_ITEMS.map(x => `<li><i data-i="check"></i><span>${esc(x)}</span></li>`).join('')}</ul></div>
+            <div class="card-b">${ITEMS_MODE ? itemsHtml() : ''}${PKG_ITEMS.length ? `${ITEMS_MODE ? `<h3 class="sub-h">${esc(L.alwaysIncluded)}</h3>` : ''}<ul class="incl">${PKG_ITEMS.map(x => `<li><i data-i="check"></i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}</div>
         </section>
 
         <section class="card rise">
             <div class="card-h"><span class="n">2</span><h2>תנאי ההסכם וביטולים</h2></div>
             <div class="card-b"><ol class="terms">${termsList().map(t => `<li>${esc(t)}</li>`).join('')}</ol></div>
         </section>
+
+        ${contactHtml()}
 
         <section class="card rise">
             <div class="card-h"><span class="n">3</span><h2>אישור וחתימה</h2></div>
@@ -119,7 +150,7 @@
                     <div id="pdf-hide-controls" style="display:flex;flex-direction:column;gap:14px">
                         <div class="callout"><b>מה קורה בלחיצה:</b> ה-PDF המלא של ההסכם יירד למכשיר שלכם, ובמקביל האישור והחתימה יישלחו ל-${esc(B.name)}. לחיזוק התוקף המשפטי של החתימה מתועדים גם תאריך, שעה, כתובת IP וסוג הדפדפן.</div>
                         <label class="agree"><input type="checkbox" id="agree-terms" required>
-                            <span>קראתי ואני מאשר/ת את <a href="../legal/terms.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">תנאי השימוש</a> ואת <a href="../legal/privacy.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</span></label>
+                            <span>קראתי ואני מאשר/ת את תנאי ההסכם שלמעלה, את <a href="../legal/terms.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">תנאי השימוש</a>, את <a href="../legal/refunds.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">מדיניות הביטול וההחזרים</a> ואת <a href="../legal/privacy.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</span></label>
                         <button type="submit" id="submit-btn" class="btn btn-block"><i data-i="shield"></i> אישור ההסכם, הורדת PDF ושליחה</button>
                     </div>
                 </form>
@@ -203,18 +234,23 @@
             </div>
             <div class="doc-section"><table>
               <tr><td class="k">לכבוד</td><td>${esc(c.name)}</td><td class="k">סוג האירוע</td><td>${esc(c.type)}</td></tr>
-              <tr><td class="k">${esc(L.service)}</td><td colspan="3">${esc(svc.label)}</td></tr>
+              ${ITEMS_MODE ? '' : `<tr><td class="k">${esc(L.service)}</td><td colspan="3">${esc(svc.label)}</td></tr>`}
               <tr><td class="k">מיקום</td><td>${esc(c.location)}</td><td class="k">תאריך</td><td dir="ltr" style="text-align:right">${esc(c.date)}</td></tr>
-              <tr><td class="k">שעות</td><td><span dir="ltr">${esc(c.startTime)} - ${esc(c.endTime)}</span>${act ? ' &nbsp;·&nbsp; ' + esc(act) : ''}</td><td class="k">מוזמנים</td><td>${c.guests ? 'עד ' + Number(c.guests).toLocaleString() : '—'}</td></tr>
+              <tr><td class="k">${c.endTime ? 'שעות' : 'שעה'}</td><td><span dir="ltr">${esc(c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'))}</span>${act ? ' &nbsp;·&nbsp; ' + esc(act) : ''}</td><td class="k">מוזמנים</td><td>${c.guests ? 'עד ' + Number(c.guests).toLocaleString() : '—'}</td></tr>
               <tr><td class="k">מחיר כולל</td><td class="hl">${c.price.toLocaleString()} ש"ח</td><td class="k">מקדמה</td><td>${c.deposit.toLocaleString()} ש"ח</td></tr>
-              <tr><td class="k">יתרה בסיום</td><td colspan="3"><b>${bal.toLocaleString()} ש"ח</b></td></tr>
+              <tr><td class="k">${esc(L.balance)}</td><td colspan="3"><b>${bal.toLocaleString()} ש"ח</b></td></tr>
             </table></div>
+            ${ITEMS_MODE ? `<div class="doc-section"><div class="doc-h">פירוט ההצעה</div><table class="doc-items">
+              <tr class="th"><td>פריט</td><td class="n">כמות</td><td class="n">מחיר ליחידה</td><td class="n">סה"כ</td></tr>
+              ${c.items.map(i => `<tr><td>${esc(i.label)}</td><td class="n">${i.qty}</td><td class="n">${Number(i.price).toLocaleString()} ש"ח</td><td class="n">${lineTotal(i).toLocaleString()} ש"ח</td></tr>`).join('')}
+              ${c.discount ? `<tr><td colspan="3">הנחה</td><td class="n">−${c.discount.toLocaleString()} ש"ח</td></tr>` : ''}
+              <tr class="tt"><td colspan="3">סה"כ</td><td class="n">${c.price.toLocaleString()} ש"ח</td></tr></table></div>` : ''}
             ${c.notes.trim() ? `<div class="doc-section"><div class="doc-h">הערות וסיכומים</div><div class="doc-notes">${esc(c.notes)}</div></div>` : ''}
-            <div class="doc-section"><div class="doc-h">${esc(L.included)}</div><ul>${PKG_ITEMS.map(x => `<li><span class="mk">✓</span>${esc(x)}</li>`).join('')}</ul></div>
+            ${PKG_ITEMS.length ? `<div class="doc-section"><div class="doc-h">${esc(ITEMS_MODE ? L.alwaysIncluded : L.included)}</div><ul>${PKG_ITEMS.map(x => `<li><span class="mk">✓</span>${esc(x)}</li>`).join('')}</ul></div>` : ''}
             <div class="doc-section"><div class="doc-h">תנאי ההסכם וביטולים</div><ol class="terms-pdf">${termsList().map((t, i) => `<li><span class="mk">${i + 1}.</span>${esc(t)}</li>`).join('')}</ol></div>
             <div class="doc-section doc-sign">
               <div class="doc-h">אישור וחתימת הלקוח</div>
-              <p>אני, <b>${esc(c.name)}</b>, מאשר/ת בזאת את פרטי הצעת המחיר ואת תנאי ההסכם המפורטים במסמך זה, וחותם/ת עליהם בחתימה דיגיטלית מחייבת. לצורך תוקפה המשפטי של החתימה מתועדים להלן מועד, כתובת IP וסוג הדפדפן שמהם בוצעה החתימה.</p>
+              <p>אני, <b>${esc(c.name)}</b>, מאשר/ת בזאת את פרטי הצעת המחיר, את תנאי ההסכם המפורטים במסמך זה ואת מדיניות הביטול וההחזרים של העסק, וחותם/ת עליהם בחתימה דיגיטלית מחייבת. לצורך תוקפה המשפטי של החתימה מתועדים להלן מועד, כתובת IP וסוג הדפדפן שמהם בוצעה החתימה.</p>
               <img class="sig" src="${sig}" alt="חתימת הלקוח">
               <div class="doc-meta">חתימה דיגיטלית · תאריך: ${m.ts.toLocaleDateString('he-IL')} · שעה: ${m.ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}<br>כתובת IP: ${esc(m.ip || 'לא זוהתה')} · דפדפן: ${esc(m.ua)}</div>
             </div>
@@ -309,8 +345,9 @@
         const link = pdfBlob ? await uploadPdf(pdfBlob, `Contract_${safe}.pdf`) : null;
         const fields = {
             _subject: `הסכם חתום חדש — ${c.name} (${c.type})`,
-            'שם הלקוח': c.name, 'סוג אירוע': c.type, [L.service]: svc.label, 'מיקום': c.location, 'תאריך האירוע': c.date,
-            'שעות': `${c.startTime} - ${c.endTime}`, 'כמות מוזמנים': c.guests || '—', 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
+            'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)`).join(' · ') : svc.label,
+            'מיקום': c.location, 'תאריך האירוע': c.date,
+            'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
             'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'), 'כתובת IP': m.ip || 'לא זוהתה',
             'דפדפן (User Agent)': m.ua, 'הורדת ההסכם החתום (PDF)': link ? link + '  (זמין בשעה הקרובה — הקובץ גם מצורף למייל)' : 'הקובץ מצורף למייל'
         };
@@ -351,32 +388,38 @@
     /* ---------- הוספה ליומן ---------- */
     function eventDateParts(){
         const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(c.date || '').trim());
-        const s = parseHM(c.startTime), e = parseHM(c.endTime);
-        if (!m || s == null || e == null) return null;
+        if (!m) return null;
+        const s = parseHM(c.startTime); let e = parseHM(c.endTime);
+        if (s == null) {   // בלי שעה — אירוע של יום שלם
+            const start = new Date(+m[3], +m[2] - 1, +m[1]), end = new Date(+m[3], +m[2] - 1, +m[1] + 1);
+            return { start, end, allDay: true };
+        }
+        if (e == null) e = s + 60 * (P.EVENT_HOURS || 4);
         const start = new Date(+m[3], +m[2] - 1, +m[1], Math.floor(s / 60), s % 60);
         const end = new Date(+m[3], +m[2] - 1, +m[1], 0, 0); end.setMinutes(e <= s ? e + 1440 : e);
         return { start, end };
     }
-    const fmtCal = d => { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + 'T' + p(d.getHours()) + p(d.getMinutes()) + '00'; };
+    const fmtCal = (d, allDay) => { const p = n => String(n).padStart(2, '0'); const day = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()); return allDay ? day : day + 'T' + p(d.getHours()) + p(d.getMinutes()) + '00'; };
     function calEvent(){
         const parts = eventDateParts(); if (!parts) return null;
-        const details = [ `${B.name} · ${svc.label} — ${c.type || 'אירוע'}`, `לכבוד: ${c.name}`, `שעות: ${c.startTime} - ${c.endTime}` + (act ? ` (${act})` : ''),
+        const details = [ `${B.name}${svc.label ? ' · ' + svc.label : ''} — ${c.type || 'אירוע'}`, `לכבוד: ${c.name}`, timeText ? `שעות: ${timeText}` + (act ? ` (${act})` : '') : '',
+            ITEMS_MODE ? 'כולל: ' + c.items.map(i => i.label).join(', ') : '',
             c.guests ? `מוזמנים: עד ${Number(c.guests).toLocaleString()}` : '', `מחיר כולל: ${money(c.price)} · מקדמה: ${money(c.deposit)} · יתרה בסיום: ${money(bal)}`,
             B.phone ? `טלפון: ${B.phone}` : '', c.notes.trim() ? `הערות: ${c.notes.trim()}` : '' ].filter(Boolean).join('\n');
-        return { start: parts.start, end: parts.end, title: `${B.name} · ${c.type || 'אירוע'}`, location: c.location || '', details };
+        return { start: parts.start, end: parts.end, allDay: !!parts.allDay, title: `${B.name} · ${c.type || 'אירוע'}`, location: c.location || '', details };
     }
     function waitForCriticalSave(max){ return new Promise(r => { const t0 = Date.now(); (function chk(){ if (criticalSaveDone || Date.now() - t0 >= max) r(); else setTimeout(chk, 150); })(); }); }
     async function addToCalendar(){
         const ev = calEvent(); if (!ev) return;
         await waitForCriticalSave(5000);
         const u = new URL('https://calendar.google.com/calendar/render');
-        u.searchParams.set('action', 'TEMPLATE'); u.searchParams.set('text', ev.title); u.searchParams.set('dates', fmtCal(ev.start) + '/' + fmtCal(ev.end));
+        u.searchParams.set('action', 'TEMPLATE'); u.searchParams.set('text', ev.title); u.searchParams.set('dates', fmtCal(ev.start, ev.allDay) + '/' + fmtCal(ev.end, ev.allDay));
         u.searchParams.set('details', ev.details); u.searchParams.set('location', ev.location); u.searchParams.set('ctz', 'Asia/Jerusalem');
         const gc = u.toString(), ua = navigator.userAgent || '';
         if (/Android/.test(ua)) {
             location.href = 'intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/event;S.title=' + encodeURIComponent(ev.title)
                 + ';S.eventLocation=' + encodeURIComponent(ev.location) + ';S.description=' + encodeURIComponent(ev.details)
-                + ';l.beginTime=' + ev.start.getTime() + ';l.endTime=' + ev.end.getTime() + ';S.browser_fallback_url=' + encodeURIComponent(gc) + ';end';
+                + ';l.beginTime=' + ev.start.getTime() + ';l.endTime=' + ev.end.getTime() + (ev.allDay ? ';B.allDay=true' : '') + ';S.browser_fallback_url=' + encodeURIComponent(gc) + ';end';
         } else if (/iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
             if (!window.open(gc, '_blank')) location.href = gc;
         } else {

@@ -55,6 +55,7 @@
             ${contact ? `<p style="margin:6px 0 0">${contact}</p>` : ''}
             <nav class="pills" aria-label="מסמכים">
                 <a href="${legalBase}terms.html?${qs}">תנאי שימוש</a>
+                <a href="${legalBase}refunds.html?${qs}">ביטול והחזרים</a>
                 <a href="${legalBase}privacy.html?${qs}">פרטיות</a>
                 <a href="${legalBase}accessibility.html?${qs}">נגישות</a>
             </nav>

@@ -124,6 +124,33 @@ html.has-cookie-bar #cal-fab-wrap{ bottom:calc(env(safe-area-inset-bottom) + 96p
 .rise{ animation:rise .45s cubic-bezier(.2,.8,.2,1) both; }
 @media (prefers-reduced-motion:reduce){ .rise{ animation:none } #pdf-overlay .spin{ animation-duration:3s } }
 
+
+/* ---------- הצעה לפי פריטים ---------- */
+.sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.items-tbl{ width:100%; border-collapse:collapse; font-size:14.5px; margin-bottom:6px; }
+.items-tbl th{ text-align:right; font-size:12px; color:var(--muted); font-weight:700; padding:0 6px 8px; border-bottom:1.5px solid var(--line); }
+.items-tbl td{ padding:12px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+.items-tbl td small{ display:block; color:var(--muted); font-size:12.5px; line-height:1.45; margin-top:2px; }
+.items-tbl .n{ text-align:left; white-space:nowrap; }
+.items-tbl th.n{ text-align:left; }
+.items-tbl tfoot td{ border-bottom:0; padding:8px 6px; font-weight:600; }
+.items-tbl tfoot .disc td{ color:var(--ok); }
+.items-tbl tfoot .tot td{ font-weight:900; font-size:18px; color:var(--brand); border-top:2px solid var(--ink); padding-top:12px; }
+.sub-h{ margin:18px 0 10px; font-size:14px; font-weight:800; color:var(--muted); }
+
+/* ---------- יצירת קשר ---------- */
+.card-h .n svg{ width:16px; height:16px; }
+.contact-btns{ display:flex; flex-wrap:wrap; gap:10px; }
+.contact-btns .btn{ flex:1 1 180px; font-size:15px; padding:12px 16px; min-width:0; }
+.contact-btns .btn span{ min-width:0; overflow-wrap:anywhere; }
+.contact-btns .btn.mail{ flex-basis:100%; font-size:14px; }
+.contact-btns .btn svg{ color:var(--brand); }
+
+#pdf-doc table.doc-items td{ font-size:12.5px; padding:7px 10px; }
+#pdf-doc table.doc-items .th td{ background:#F4F4F6; font-weight:800; }
+#pdf-doc table.doc-items .tt td{ font-weight:900; background:var(--brand-soft); }
+#pdf-doc table.doc-items .n{ text-align:left; white-space:nowrap; width:110px; }
+
 /* ---------- מסמך ה-PDF (מוסתר; fixed כדי לא להרחיב את הדף ב-RTL) ---------- */
 #pdf-doc{ position:fixed; left:0; top:0; width:760px; visibility:hidden; pointer-events:none; background:#fff; color:#111; z-index:-1; font-family:var(--font),'Heebo',Arial,sans-serif; }
 #pdf-doc *{ box-sizing:border-box; margin:0; padding:0; }
