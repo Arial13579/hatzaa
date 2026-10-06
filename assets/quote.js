@@ -1,6 +1,6 @@
 /* דף הצעת המחיר ללקוח: הצגה, חתימה, PDF, שליחה לספק ועדכון הסטטוס בלוח הבקרה שלו.
    נטען מתוך <slug>/index.html אחרי config.js של הספק (window.TENANT) ו-platform.js. */
-(function(){
+(async function(){
     const T = window.TENANT, PF = window.PLATFORM || {};
     const B = Object.assign({ name: '', tagline: '', email: '', phone: '', businessId: '' }, T.business || {});
     const P = T.pricing || {};
@@ -8,7 +8,27 @@
     const SUPPLIER_EMAIL = B.email;
     const WEB3FORMS_KEY = T.web3formsKey || '';
     const esc = Brand.esc, $ = id => document.getElementById(id);
-    const dataParam = new URLSearchParams(location.search).get('q');
+    const params = new URLSearchParams(location.search);
+    let dataParam = params.get('q');
+    /* ---------- Firebase (פתיחת קישור קצר ועדכון הסטטוס — בלי התחברות) ---------- */
+    let fbPromise = null;
+    function initFirebase(){
+        if (fbPromise) return fbPromise;
+        fbPromise = (async () => {
+            try {
+                if (!PF.firebase || !PF.firebase.apiKey) return null;
+                const [{ initializeApp }, fs] = await Promise.all([
+                    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+                    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')
+                ]);
+                const appFb = initializeApp(PF.firebase, 'quote');
+                const db = fs.getFirestore(appFb, PF.firestoreDatabaseId || '(default)');
+                if (window.__EMU__) fs.connectFirestoreEmulator(db, '127.0.0.1', window.__EMU__.firestore);   // בדיקות מקומיות בלבד
+                return { db, fs };
+            } catch (err) { console.warn('firebase init failed', err); return null; }
+        })();
+        return fbPromise;
+    }
 
     Brand.apply(T);
     document.title = `${B.name} | ${L.docTitle}`;
@@ -50,6 +70,20 @@
         Icons.paint(app);
     }
 
+    // קישור קצר (?k=…): הפרטים נשמרים בשרת ונשלפים לפי המזהה
+    const shortKey = params.get('k');
+    if (!dataParam && shortKey) {
+        renderShell(`<div class="card card-b rise" style="text-align:center">טוען את ההצעה…</div>`);
+        try {
+            const fb = /^[a-z0-9]{6,20}$/.test(shortKey) ? await initFirebase() : null;
+            const snap = fb ? await fb.fs.getDoc(fb.fs.doc(fb.db, 'shortLinks', shortKey)) : null;
+            if (snap && snap.exists()) dataParam = snap.data().q;
+        } catch (err) { console.warn('short link failed', err); }
+        if (!dataParam) {
+            renderShell(`<div class="card card-b rise" style="text-align:center;color:var(--bad);font-weight:700">ההצעה לא נמצאה. ייתכן שהיא נמחקה — בקשו מ-${esc(B.name)} קישור חדש.</div>`);
+            return;
+        }
+    }
     if (!dataParam) {
         renderShell(`<div class="card card-b rise" style="text-align:center">כדי לצפות בהצעת מחיר יש לפתוח את הקישור האישי שקיבלתם מ-${esc(B.name)}.</div>`);
         return;
@@ -182,25 +216,6 @@
     canvas.addEventListener('touchstart', down, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); canvas.addEventListener('touchend', up);
     $('clear-sig').addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); hasSigned = false; });
 
-    /* ---------- Firebase (רק לעדכון הסטטוס — בלי התחברות) ---------- */
-    let fbPromise = null;
-    function initFirebase(){
-        if (fbPromise) return fbPromise;
-        fbPromise = (async () => {
-            try {
-                if (!PF.firebase || !PF.firebase.apiKey) return null;
-                const [{ initializeApp }, fs] = await Promise.all([
-                    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
-                    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')
-                ]);
-                const appFb = initializeApp(PF.firebase, 'quote');
-                const db = fs.getFirestore(appFb, PF.firestoreDatabaseId || '(default)');
-                if (window.__EMU__) fs.connectFirestoreEmulator(db, '127.0.0.1', window.__EMU__.firestore);   // בדיקות מקומיות בלבד
-                return { db, fs };
-            } catch (err) { console.warn('firebase init failed', err); return null; }
-        })();
-        return fbPromise;
-    }
     function withTimeout(promise, ms, fallback){ return Promise.race([promise, new Promise(r => setTimeout(() => r(fallback), ms))]); }
 
     const PDF_MAX_STORE_BYTES = 700 * 1024;
