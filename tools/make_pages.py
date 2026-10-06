@@ -1,5 +1,6 @@
 """יוצר את index.html של כל ספק מתוך config.js שלו (תגי התצוגה המקדימה בוואטסאפ חייבים להיות סטטיים).
-הרצה: python3 tools/make_pages.py   (מתוך תיקיית השורש של האתר)"""
+הרצה: python3 tools/make_pages.py   (מתוך תיקיית השורש של האתר)
+לפני כן, ליצירת תמונת וואטסאפ לספק חדש: node tools/make_og.mjs . (ראו הסבר בקובץ)"""
 import json, pathlib, re, html
 
 BASE = 'https://arial13579.github.io/hatzaa'   # הכתובת הציבורית של האתר (תוחלף בדומיין כשיהיה)
@@ -9,7 +10,7 @@ TEMPLATE = '''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#F5F4F1">
+<meta name="theme-color" content="{bg}">
 <meta name="robots" content="noindex, nofollow">
 <title>{name} | הצעת מחיר והסכם</title>
 <meta name="description" content="הצעת המחיר וההסכם שלך מ-{name} — כל הפרטים וחתימה דיגיטלית.">
@@ -17,7 +18,13 @@ TEMPLATE = '''<!DOCTYPE html>
 <meta property="og:site_name" content="{name}">
 <meta property="og:title" content="{name} · הצעת המחיר שלך מוכנה">
 <meta property="og:description" content="לחצו לצפייה בכל הפרטים ולחתימה דיגיטלית.">
+<meta property="og:url" content="{base}/{slug}/">
 <meta property="og:image" content="{og}">
+<meta property="og:image:secure_url" content="{og}">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{name} · הצעת המחיר שלך מוכנה">
 <meta property="og:locale" content="he_IL">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{icon}">
@@ -49,7 +56,9 @@ for cfg in sorted(root.glob('*/config.js')):
     d = cfg.parent
     src = cfg.read_text(encoding='utf-8')
     slug, name, logo = field(src, 'slug'), field(src, 'name'), field(src, 'logo')
-    og = f"{BASE}/{slug}/og.jpg" if (d / 'og.jpg').exists() else f"{BASE}/assets/og-default.jpg"
+    ver = field(src, 'ogVersion') or '1'
+    og = f"{BASE}/{slug}/og.jpg?v={ver}" if (d / 'og.jpg').exists() else f"{BASE}/assets/og-default.jpg"
+    bg = field(src, 'background') or '#F5F4F1'
     icon = logo if logo else '../assets/favicon.svg'
-    (d / 'index.html').write_text(TEMPLATE.format(name=html.escape(name), slug=slug, og=og, icon=icon), encoding='utf-8')
+    (d / 'index.html').write_text(TEMPLATE.format(name=html.escape(name), slug=slug, og=og, icon=icon, base=BASE, bg=bg), encoding='utf-8')
     print('wrote', d.name + '/index.html')
