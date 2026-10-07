@@ -70,8 +70,8 @@ html,body{width:1200px;height:630px;overflow:hidden}
   <div class="mono">${logo}</div>
   <div class="name">${esc(B.name)}</div>
   ${B.tagline ? `<div class="tag">${esc(B.tagline)}</div>` : ''}
-  <div class="head">הצעת המחיר שלך מוכנה</div>
-  <div class="cta">לחצו לצפייה ולחתימה <b>←</b></div>
+  <div class="head">${esc((T.og && T.og.head) || 'הצעת המחיר שלך מוכנה')}</div>
+  <div class="cta">${esc((T.og && T.og.cta) || 'לחצו לצפייה ולחתימה')} <b>←</b></div>
 </div>
 </div></body></html>`;
 }
