@@ -225,7 +225,10 @@
         if (!fb || !c.quoteId) { criticalSaveDone = true; return; }
         const ref = fb.fs.doc(fb.db, 'tenants', T.slug, 'quotes', c.quoteId);
         try {
-            await fb.fs.updateDoc(ref, { status: 'signed', signedAt: fb.fs.serverTimestamp(), ip: meta && meta.ip ? meta.ip : null, userAgent: meta && meta.ua ? meta.ua : null });
+            const base = { status: 'signed', signedAt: fb.fs.serverTimestamp(), ip: null, userAgent: meta && meta.ua ? String(meta.ua).slice(0, 500) : null };
+            // signedQ: הפרטים בדיוק כפי שהוצגו ללקוח. אם הכללים עוד לא עודכנו — חותמים בלעדיו (החתימה לא הולכת לאיבוד)
+            try { await fb.fs.updateDoc(ref, { ...base, signedQ: String(dataParam || '').slice(0, 7900) }); }
+            catch (e1) { await fb.fs.updateDoc(ref, base); }
         } catch (err) { console.warn('status update failed', err); criticalSaveDone = true; return; }
         criticalSaveDone = true;
         if (pdfBlob && pdfBlob.size <= PDF_MAX_STORE_BYTES) {
@@ -311,16 +314,6 @@
     }
 
     /* ---------- שליחה לספק ---------- */
-    async function uploadPdf(blob, name){
-        try {
-            const fd = new FormData(); fd.append('file', blob, name);
-            const r = await withTimeout(fetch('https://tmpfiles.org/api/v1/upload', { method: 'POST', body: fd }), 10000, null);
-            if (!r) return null;
-            const j = await r.json(), u = j && j.data && j.data.url;
-            if (u) return u.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
-        } catch(e){ console.warn('tmpfiles failed', e); }
-        return null;
-    }
     async function getClientIp(){ return null; }   // כתובת IP לא נאספת
     async function sendViaWeb3Forms(fields, pdfBlob, sigBlob, safe){
         if (!WEB3FORMS_KEY || WEB3FORMS_KEY.trim().length < 20) return false;
@@ -354,14 +347,13 @@
         });
     }
     async function sendToBusiness(pdfBlob, sigBlob, safe, m){
-        const link = pdfBlob ? await uploadPdf(pdfBlob, `Contract_${safe}.pdf`) : null;
         const fields = {
             _subject: `הסכם חתום חדש — ${c.name} (${c.type})`,
             'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)`).join(' · ') : svc.label,
             'מיקום': c.location, 'תאריך האירוע': c.date,
             'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
             'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'),
-            'דפדפן (User Agent)': m.ua, 'הורדת ההסכם החתום (PDF)': link ? link + '  (זמין בשעה הקרובה — הקובץ גם מצורף למייל)' : 'הקובץ מצורף למייל'
+            'דפדפן (User Agent)': m.ua, 'ההסכם החתום (PDF)': 'מצורף למייל, ושמור גם בלוח הבקרה במערכת'
         };
         let ok = await sendViaWeb3Forms(fields, pdfBlob, sigBlob, safe);
         if (!ok) ok = await sendViaFormSubmit(fields, pdfBlob, sigBlob, safe);
