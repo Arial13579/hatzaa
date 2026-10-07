@@ -225,7 +225,10 @@
         if (!fb || !c.quoteId) { criticalSaveDone = true; return; }
         const ref = fb.fs.doc(fb.db, 'tenants', T.slug, 'quotes', c.quoteId);
         try {
-            await fb.fs.updateDoc(ref, { status: 'signed', signedAt: fb.fs.serverTimestamp(), ip: null, userAgent: meta && meta.ua ? String(meta.ua).slice(0, 500) : null, signedQ: String(dataParam || '').slice(0, 7900) });   // signedQ: הפרטים בדיוק כפי שהוצגו ללקוח
+            const base = { status: 'signed', signedAt: fb.fs.serverTimestamp(), ip: null, userAgent: meta && meta.ua ? String(meta.ua).slice(0, 500) : null };
+            // signedQ: הפרטים בדיוק כפי שהוצגו ללקוח. אם הכללים עוד לא עודכנו — חותמים בלעדיו (החתימה לא הולכת לאיבוד)
+            try { await fb.fs.updateDoc(ref, { ...base, signedQ: String(dataParam || '').slice(0, 7900) }); }
+            catch (e1) { await fb.fs.updateDoc(ref, base); }
         } catch (err) { console.warn('status update failed', err); criticalSaveDone = true; return; }
         criticalSaveDone = true;
         if (pdfBlob && pdfBlob.size <= PDF_MAX_STORE_BYTES) {
