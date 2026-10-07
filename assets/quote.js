@@ -182,7 +182,7 @@
                         <p class="hint">תאריך: <span class="ltr">${new Date().toLocaleDateString('he-IL')}</span></p>
                     </div>
                     <div id="pdf-hide-controls" style="display:flex;flex-direction:column;gap:14px">
-                        <div class="callout"><b>מה קורה בלחיצה:</b> ה-PDF המלא של ההסכם יירד למכשיר שלכם, ובמקביל האישור והחתימה יישלחו ל-${esc(B.name)}. לחיזוק התוקף המשפטי של החתימה מתועדים גם תאריך, שעה, כתובת IP וסוג הדפדפן.</div>
+                        <div class="callout"><b>מה קורה בלחיצה:</b> ה-PDF המלא של ההסכם יירד למכשיר שלכם, ובמקביל האישור והחתימה יישלחו ל-${esc(B.name)}. לחיזוק התוקף המשפטי של החתימה מתועדים גם תאריך, שעה וסוג הדפדפן.</div>
                         <label class="agree"><input type="checkbox" id="agree-terms" required>
                             <span>קראתי ואני מאשר/ת את תנאי ההסכם שלמעלה, את <a href="../legal/terms.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">תנאי השימוש</a>, את <a href="../legal/refunds.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">מדיניות הביטול וההחזרים</a> ואת <a href="../legal/privacy.html?t=${encodeURIComponent(T.slug)}&q=${encodeURIComponent(dataParam)}" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</span></label>
                         <button type="submit" id="submit-btn" class="btn btn-block"><i data-i="shield"></i> אישור ההסכם, הורדת PDF ושליחה</button>
@@ -265,9 +265,9 @@
             <div class="doc-section"><div class="doc-h">תנאי ההסכם וביטולים</div><ol class="terms-pdf">${termsList().map((t, i) => `<li><span class="mk">${i + 1}.</span>${esc(t)}</li>`).join('')}</ol></div>
             <div class="doc-section doc-sign">
               <div class="doc-h">אישור וחתימת הלקוח</div>
-              <p>אני, <b>${esc(c.name)}</b>, מאשר/ת בזאת את פרטי הצעת המחיר, את תנאי ההסכם המפורטים במסמך זה ואת מדיניות הביטול וההחזרים של העסק, וחותם/ת עליהם בחתימה דיגיטלית מחייבת. לצורך תוקפה המשפטי של החתימה מתועדים להלן מועד, כתובת IP וסוג הדפדפן שמהם בוצעה החתימה.</p>
+              <p>אני, <b>${esc(c.name)}</b>, מאשר/ת בזאת את פרטי הצעת המחיר, את תנאי ההסכם המפורטים במסמך זה ואת מדיניות הביטול וההחזרים של העסק, וחותם/ת עליהם בחתימה דיגיטלית מחייבת. לצורך תוקפה המשפטי של החתימה מתועדים להלן מועד וסוג הדפדפן שמהם בוצעה החתימה.</p>
               <img class="sig" src="${sig}" alt="חתימת הלקוח">
-              <div class="doc-meta">חתימה דיגיטלית · תאריך: ${m.ts.toLocaleDateString('he-IL')} · שעה: ${m.ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}<br>כתובת IP: ${esc(m.ip || 'לא זוהתה')} · דפדפן: ${esc(m.ua)}</div>
+              <div class="doc-meta">חתימה דיגיטלית · תאריך: ${m.ts.toLocaleDateString('he-IL')} · שעה: ${m.ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}<br>דפדפן: ${esc(m.ua)}</div>
             </div>
             <div class="doc-foot">${esc(B.name)}${B.businessId ? ' · ' + esc(B.businessId) : ''} · ${esc(SUPPLIER_EMAIL)}${B.phone ? ' · ' + esc(B.phone) : ''}</div>
           </div>`;
@@ -321,10 +321,7 @@
         } catch(e){ console.warn('tmpfiles failed', e); }
         return null;
     }
-    async function getClientIp(){
-        try { const r = await withTimeout(fetch('https://api.ipify.org?format=json'), 5000, null); if (!r) return null; const j = await r.json(); return (j && j.ip) || null; }
-        catch(e){ return null; }
-    }
+    async function getClientIp(){ return null; }   // כתובת IP לא נאספת
     async function sendViaWeb3Forms(fields, pdfBlob, sigBlob, safe){
         if (!WEB3FORMS_KEY || WEB3FORMS_KEY.trim().length < 20) return false;
         try {
@@ -363,7 +360,7 @@
             'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)`).join(' · ') : svc.label,
             'מיקום': c.location, 'תאריך האירוע': c.date,
             'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
-            'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'), 'כתובת IP': m.ip || 'לא זוהתה',
+            'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'),
             'דפדפן (User Agent)': m.ua, 'הורדת ההסכם החתום (PDF)': link ? link + '  (זמין בשעה הקרובה — הקובץ גם מצורף למייל)' : 'הקובץ מצורף למייל'
         };
         let ok = await sendViaWeb3Forms(fields, pdfBlob, sigBlob, safe);
