@@ -187,3 +187,24 @@ html.has-cookie-bar #cal-fab-wrap{ bottom:calc(env(safe-area-inset-bottom) + 96p
 }
 
 .money .total .was{ font-size:12.5px; font-weight:700; color:var(--ink); margin-top:2px; }
+
+/* תוקף, תשלום, הטבות ותוספות */
+.valid-pill{ display:inline-block; margin-top:10px; font-size:13px; font-weight:800; border-radius:999px; padding:4px 12px; background:rgba(255,255,255,.18); }
+.valid-pill.exp{ background:#fff; color:var(--bad); }
+.perks, .extras{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.perks li, .extras li{ display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px dashed var(--line); border-radius:12px; padding:10px 14px; font-weight:700; }
+.perks .w{ font-size:13px; white-space:nowrap; }
+.perks .w b{ color:var(--ok); }
+.extras small{ display:block; font-weight:500; color:var(--muted); font-size:13px; margin-top:2px; }
+.extras .p{ font-weight:900; white-space:nowrap; }
+.timeline{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0; }
+.timeline li{ display:flex; justify-content:space-between; gap:12px; padding:11px 0 11px 0; border-bottom:1px solid var(--line); position:relative; padding-inline-start:22px; }
+.timeline li::before{ content:''; position:absolute; inset-inline-start:4px; top:17px; width:10px; height:10px; border-radius:50%; background:var(--brand); }
+.timeline .k{ font-weight:800; }
+.timeline .v{ font-weight:700; text-align:left; }
+.pay-m{ margin:12px 0 0; font-size:14px; }
+.valid-line{ margin:10px 0 0; font-size:14px; font-weight:700; display:flex; gap:6px; align-items:center; }
+.valid-line.exp{ color:var(--bad); }
+.callout.warn{ background:#FDECEC; color:#7A1515; }
+.valid-line svg, .valid-line i{ width:18px; height:18px; flex:none; }
+.timeline .k{ white-space:nowrap; }

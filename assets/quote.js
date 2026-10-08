@@ -100,6 +100,16 @@
               discount: Number(p[13]) || 0,
               // חבילה (מחירון אוטומטי): שם^שעות^שורת פתיחה^מה כלול (~) — תמונת מצב מרגע יצירת ההצעה
               pkg: p[14] ? (([label, hours, lead, inc]) => ({ label: label || '', hours: Number(hours) || 0, lead: lead || '', items: (inc || '').split('~').filter(Boolean) }))(p[14].split('^')) : null };
+        // 15–19: פירוט מחיר, תוספות אפשריות, הטבות, תוקף, תנאי תשלום (תואם ל-Core.shareUrl במערכת הספקים)
+        const lines = (s, f) => (s || '').split('~').filter(Boolean).map(x => f(x.split('^')));
+        const [pm, due] = (p[19] || '').split('^');
+        Object.assign(c, {
+            breakdown: lines(p[15], a => ({ label: a[0] || '', amount: Number(a[1]) || 0 })),
+            extras: lines(p[16], a => ({ label: a[0] || '', price: Number(a[1]) || 0, desc: a[2] || '' })),
+            perks: lines(p[17], a => ({ label: a[0] || '', worth: Number(a[1]) || 0 })),
+            validUntil: /^\d{4}-\d{2}-\d{2}$/.test(p[18] || '') ? p[18] : '',
+            payment: { methods: (pm || '').split(',').map(x => x.trim()).filter(Boolean), due: due || '' }
+        });
     } catch (err) {
         console.error(err);
         renderShell(`<div class="card card-b rise" style="text-align:center;color:var(--bad);font-weight:700">הקישור אינו תקין. בקשו מ-${esc(B.name)} קישור חדש.</div>`);
@@ -119,6 +129,49 @@
     const shortId = c.quoteId ? '#' + c.quoteId.slice(-6).toUpperCase() : '';
     const money = n => '₪' + Number(n || 0).toLocaleString();
     document.title = `${B.name} | ${L.docTitle} · ${c.name}`;
+    // תוקף ההצעה
+    const ymd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+    const dmy = d => d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : '';
+    const validDate = ymd(c.validUntil), today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    const EXPIRED = !!validDate && today0 > validDate;
+    const hasPayInfo = c.payment.methods.length || c.payment.due;
+    // פירוט מחיר (מחירון אוטומטי): מוצג רק אם הסכום תואם למחיר הסופי
+    const bdSum = c.breakdown.reduce((s, x) => s + x.amount, 0);
+    const SHOW_BD = !ITEMS_MODE && c.breakdown.length > 0 && bdSum - (c.discount || 0) === c.price;
+    function breakdownHtml(){
+        if (!SHOW_BD) return '';
+        return `<h3 class="sub-h">פירוט המחיר</h3><table class="items-tbl"><caption class="sr">פירוט המחיר</caption>
+            <tbody>${c.breakdown.map(x => `<tr><td>${esc(x.label)}</td><td class="n">${money(x.amount)}</td></tr>`).join('')}</tbody>
+            <tfoot>${c.discount ? `<tr><td>סכום ביניים</td><td class="n">${money(bdSum)}</td></tr><tr class="disc"><td>הנחה</td><td class="n">−${money(c.discount)}</td></tr>` : ''}
+            <tr class="tot"><td>סה"כ</td><td class="n">${money(c.price)}</td></tr></tfoot></table>`;
+    }
+    function perksHtml(){
+        if (!c.perks.length) return '';
+        return `<h3 class="sub-h">🎁 הטבות שקיבלתם — ללא תשלום</h3><ul class="perks">${c.perks.map(x => `<li><span>${esc(x.label)}</span>${x.worth ? `<span class="w">בשווי <s>${money(x.worth)}</s> · <b>מתנה</b></span>` : '<span class="w"><b>מתנה</b></span>'}</li>`).join('')}</ul>`;
+    }
+    function extrasHtml(){
+        if (!c.extras.length) return '';
+        const tel = String(B.phone || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^0/, '972');
+        return `<section class="card rise" aria-labelledby="extras-h">
+            <div class="card-h"><span class="n"><i data-i="sparkle"></i></span><h2 id="extras-h">תוספות אפשריות</h2></div>
+            <div class="card-b"><p class="hint" style="margin:0 0 10px">לא כלולות במחיר. רוצים להוסיף? כתבו לנו ונעדכן את ההצעה.</p>
+              <ul class="extras">${c.extras.map(x => `<li><div><b>${esc(x.label)}</b>${x.desc ? `<small>${esc(x.desc)}</small>` : ''}</div><span class="p">+${money(x.price)}</span></li>`).join('')}</ul>
+              ${tel ? `<a class="btn btn-light" style="margin-top:12px" href="https://wa.me/${esc(tel)}?text=${encodeURIComponent(`היי, לגבי הצעת המחיר עבור ${c.name} — אשמח להוסיף: `)}" target="_blank" rel="noopener"><i data-i="chat"></i><span>אני רוצה להוסיף</span></a>` : ''}
+            </div></section>`;
+    }
+    function paymentHtml(){
+        if (!hasPayInfo && !validDate) return '';
+        const rows = [];
+        if (c.deposit) rows.push(['עם החתימה', `מקדמה ${money(c.deposit)}`]);
+        if (bal > 0) rows.push([c.payment.due || 'לפני האירוע', `יתרה ${money(bal)}`]);
+        if (c.date) rows.push(['יום האירוע', `<span class="ltr">${esc(c.date)}</span>` + (timeText ? ` · <span class="ltr">${esc(timeText)}</span>` : '')]);
+        return `<section class="card rise" aria-labelledby="pay-h">
+            <div class="card-h"><span class="n"><i data-i="calendar"></i></span><h2 id="pay-h">תשלום ולוח זמנים</h2></div>
+            <div class="card-b"><ol class="timeline">${rows.map(r => `<li><span class="k">${esc(r[0])}</span><span class="v">${r[1]}</span></li>`).join('')}</ol>
+              ${c.payment.methods.length ? `<p class="pay-m"><b>אמצעי תשלום:</b> ${c.payment.methods.map(esc).join(' · ')}</p>` : ''}
+              ${validDate ? `<p class="valid-line${EXPIRED ? ' exp' : ''}"><i data-i="clock"></i> ${EXPIRED ? `תוקף ההצעה פג ב-${dmy(validDate)}` : `ההצעה בתוקף עד ${dmy(validDate)} (כולל)`}</p>` : ''}
+            </div></section>`;
+    }
 
     function itemsHtml(){
         return `<table class="items-tbl"><caption class="sr">פירוט ההצעה</caption>
@@ -127,14 +180,21 @@
             <tfoot>${c.discount ? `<tr><td colspan="2">סכום ביניים</td><td class="n">${money(subtotal)}</td></tr><tr class="disc"><td colspan="2">הנחה</td><td class="n">−${money(c.discount)}</td></tr>` : ''}
             <tr class="tot"><td colspan="2">סה"כ</td><td class="n">${money(c.price)}</td></tr></tfoot></table>`;
     }
+    // אתר ורשתות חברתיות (business.website / instagram / facebook / tiktok ב-config)
+    function socialLinks(){
+        const L2 = [['website', 'האתר שלנו'], ['instagram', 'אינסטגרם'], ['facebook', 'פייסבוק'], ['tiktok', 'טיקטוק']]
+            .filter(([k]) => /^https:\/\//.test(B[k] || ''));
+        return L2.map(([k, l]) => `<a class="btn btn-light" href="${esc(B[k])}" target="_blank" rel="noopener"><i data-i="link"></i><span>${l}</span></a>`).join('');
+    }
     function contactHtml(){
         const tel = String(B.phone || '').replace(/[^\d+]/g, ''), wa = tel.replace(/^\+/, '').replace(/^0/, '972');
-        if (!B.phone && !B.email) return '';
+        if (!B.phone && !B.email && !socialLinks()) return '';
         return `<section class="card rise contact" aria-labelledby="contact-h">
             <div class="card-h"><span class="n"><i data-i="chat"></i></span><h2 id="contact-h">יש שאלה? אנחנו כאן</h2></div>
             <div class="card-b"><div class="contact-btns">
                 ${B.phone ? `<a class="btn btn-light" href="tel:${esc(tel)}"><i data-i="phone"></i><span>התקשרו <span class="ltr">${esc(B.phone)}</span></span></a>
                 <a class="btn btn-light" href="https://wa.me/${esc(wa)}?text=${encodeURIComponent(`היי, לגבי הצעת המחיר עבור ${c.name}${shortId ? ' (' + shortId + ')' : ''}`)}" target="_blank" rel="noopener"><i data-i="chat"></i><span>וואטסאפ</span></a>` : ''}
+                ${socialLinks()}
                 ${B.email ? `<a class="btn btn-light mail" href="mailto:${esc(B.email)}?subject=${encodeURIComponent('הצעת מחיר ' + (shortId || '') + ' · ' + c.name)}"><i data-i="mail"></i><span class="ltr">${esc(B.email)}</span></a>` : ''}
             </div></div></section>`;
     }
@@ -146,6 +206,7 @@
                 <p class="for">לכבוד</p>
                 <h1>${esc(c.name)}</h1>
                 <div class="what">${esc(whatLine)}</div>
+                ${validDate ? `<div class="valid-pill${EXPIRED ? ' exp' : ''}">${EXPIRED ? 'פג תוקף ההצעה' : 'בתוקף עד ' + dmy(validDate)}</div>` : ''}
             </div>
             <div class="facts">
                 <div class="fact"><span class="k"><i data-i="party"></i>סוג האירוע</span><span class="v">${esc(c.type)}</span></div>
@@ -165,8 +226,10 @@
 
         <section class="card rise">
             <div class="card-h"><span class="n">1</span><h2>${esc(L.included)}</h2></div>
-            <div class="card-b">${ITEMS_MODE ? itemsHtml() : ''}${PKG_ITEMS.length ? `${ITEMS_MODE ? `<h3 class="sub-h">${esc(L.alwaysIncluded)}</h3>` : ''}<ul class="incl">${PKG_ITEMS.map(x => `<li><i data-i="check"></i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}</div>
+            <div class="card-b">${ITEMS_MODE ? itemsHtml() : ''}${perksHtml()}${PKG_ITEMS.length ? `${ITEMS_MODE ? `<h3 class="sub-h">${esc(L.alwaysIncluded)}</h3>` : ''}<ul class="incl">${PKG_ITEMS.map(x => `<li><i data-i="check"></i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}${breakdownHtml()}</div>
         </section>
+        ${extrasHtml()}
+        ${paymentHtml()}
 
         <section class="card rise">
             <div class="card-h"><span class="n">2</span><h2>תנאי ההסכם וביטולים</h2></div>
@@ -193,6 +256,15 @@
                 </form>
             </div>
         </section>`);
+
+    // הצעה שפג תוקפה: אי אפשר לחתום — מזמינים את הלקוח לבקש הצעה מעודכנת
+    if (EXPIRED) {
+        const tel = String(B.phone || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^0/, '972');
+        $('pdf-hide-controls').innerHTML = `<div class="callout warn" role="alert"><b>תוקף ההצעה פג ב-${dmy(validDate)}.</b> כדי לחתום, בקשו מ-${esc(B.name)} הצעה מעודכנת.</div>
+            ${tel ? `<a class="btn btn-block" href="https://wa.me/${esc(tel)}?text=${encodeURIComponent(`היי, תוקף הצעת המחיר עבור ${c.name}${shortId ? ' (' + shortId + ')' : ''} פג — אשמח להצעה מעודכנת 🙂`)}" target="_blank" rel="noopener"><i data-i="chat"></i> לבקשת הצעה מעודכנת בוואטסאפ</a>` : ''}`;
+        $('sig-canvas').closest('div').style.opacity = '.45';
+        Icons.paint && Icons.paint(document.body);
+    }
 
     // כפתור יומן + טופס FormSubmit נסתר
     document.body.insertAdjacentHTML('beforeend', `
@@ -267,6 +339,17 @@
               ${c.items.map(i => `<tr><td><b>${esc(i.label)}</b>${itemDesc(i) ? `<div class="doc-desc">${esc(itemDesc(i))}</div>` : ''}</td><td class="n">${i.qty}</td><td class="n">${Number(i.price).toLocaleString()} ש"ח</td><td class="n">${lineTotal(i).toLocaleString()} ש"ח</td></tr>`).join('')}
               ${c.discount ? `<tr><td colspan="3">הנחה</td><td class="n">−${c.discount.toLocaleString()} ש"ח</td></tr>` : ''}
               <tr class="tt"><td colspan="3">סה"כ</td><td class="n">${c.price.toLocaleString()} ש"ח</td></tr></table></div>` : ''}
+            ${SHOW_BD ? `<div class="doc-section"><div class="doc-h">פירוט המחיר</div><table class="doc-items">
+              ${c.breakdown.map(x => `<tr><td>${esc(x.label)}</td><td class="n">${x.amount.toLocaleString()} ש"ח</td></tr>`).join('')}
+              ${c.discount ? `<tr><td>הנחה</td><td class="n">−${c.discount.toLocaleString()} ש"ח</td></tr>` : ''}
+              <tr class="tt"><td>סה"כ</td><td class="n">${c.price.toLocaleString()} ש"ח</td></tr></table></div>` : ''}
+            ${c.perks.length ? `<div class="doc-section"><div class="doc-h">הטבות ללא תשלום</div><ul>${c.perks.map(x => `<li><span class="mk">🎁</span>${esc(x.label)}${x.worth ? ` (בשווי ${x.worth.toLocaleString()} ש"ח — מתנה)` : ''}</li>`).join('')}</ul></div>` : ''}
+            ${hasPayInfo || validDate ? `<div class="doc-section"><div class="doc-h">תשלום ותוקף</div><ul>
+              ${c.deposit ? `<li><span class="mk">•</span>מקדמה ${c.deposit.toLocaleString()} ש"ח — עם החתימה</li>` : ''}
+              ${bal > 0 ? `<li><span class="mk">•</span>יתרה ${bal.toLocaleString()} ש"ח — ${esc(c.payment.due || 'לפני האירוע')}</li>` : ''}
+              ${c.payment.methods.length ? `<li><span class="mk">•</span>אמצעי תשלום: ${c.payment.methods.map(esc).join(', ')}</li>` : ''}
+              ${validDate ? `<li><span class="mk">•</span>ההצעה בתוקף עד ${dmy(validDate)}</li>` : ''}</ul></div>` : ''}
+            ${c.extras.length ? `<div class="doc-section"><div class="doc-h">תוספות אפשריות (לא כלולות במחיר)</div><ul>${c.extras.map(x => `<li><span class="mk">+</span>${esc(x.label)} — ${x.price.toLocaleString()} ש"ח${x.desc ? ' · ' + esc(x.desc) : ''}</li>`).join('')}</ul></div>` : ''}
             ${c.notes.trim() ? `<div class="doc-section"><div class="doc-h">הערות וסיכומים</div><div class="doc-notes">${esc(c.notes)}</div></div>` : ''}
             ${PKG_ITEMS.length ? `<div class="doc-section"><div class="doc-h">${esc(ITEMS_MODE ? L.alwaysIncluded : L.included)}</div><ul>${PKG_ITEMS.map(x => `<li><span class="mk">✓</span>${esc(x)}</li>`).join('')}</ul></div>` : ''}
             <div class="doc-section"><div class="doc-h">תנאי ההסכם וביטולים</div><ol class="terms-pdf">${termsList().map((t, i) => `<li><span class="mk">${i + 1}.</span>${esc(t)}</li>`).join('')}</ol></div>
@@ -355,7 +438,7 @@
             _subject: `הסכם חתום חדש — ${c.name} (${c.type})`,
             'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)${itemDesc(i) ? ' — ' + itemDesc(i) : ''}`).join(' · ') : svc.label,
             'מיקום': c.location, 'תאריך האירוע': c.date,
-            'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', ...(c.discount ? { 'הנחה': `${c.discount} ש"ח` } : {}), 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
+            'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', ...(c.discount ? { 'הנחה': `${c.discount} ש"ח` } : {}), ...(c.perks.length ? { 'הטבות': c.perks.map(x => x.label + (x.worth ? ` (בשווי ${x.worth} ש"ח)` : '')).join(' · ') } : {}), ...(c.payment.due ? { 'מועד תשלום היתרה': c.payment.due } : {}), ...(c.payment.methods.length ? { 'אמצעי תשלום': c.payment.methods.join(', ') } : {}), ...(c.validUntil ? { 'בתוקף עד': dmy(validDate) } : {}), 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
             'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'),
             'דפדפן (User Agent)': m.ua, 'ההסכם החתום (PDF)': 'מצורף למייל, ושמור גם בלוח הבקרה במערכת'
         };
@@ -366,6 +449,7 @@
 
     $('signature-form').addEventListener('submit', async e => {
         e.preventDefault();
+        if (EXPIRED) return;   // פג תוקף
         if (!hasSigned) { alert('נא לחתום בתיבה לפני אישור ההסכם.'); return; }
         if (!$('agree-terms').checked) { alert('יש לאשר את תנאי השימוש ומדיניות הפרטיות לפני השליחה.'); return; }
         const btn = $('submit-btn'), overlay = $('pdf-overlay');
