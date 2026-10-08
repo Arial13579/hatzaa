@@ -95,8 +95,8 @@
         if (p.length < 9) throw new Error('bad link');
         c = { name: p[0], type: p[1], location: p[2], date: p[3], startTime: p[4], endTime: p[5], guests: p[6] || '',
               price: Number(p[7]) || 0, deposit: Number(p[8]) || 0, notes: p[9] || '', quoteId: p[10] || '', service: p[11] || P.DEFAULT_SERVICE,
-              // מצב פריטים: שם^כמות^מחיר ליחידה, מופרדים ב-~ (זהה ל-Core.shareUrl במערכת הספקים)
-              items: (p[12] || '').split('~').filter(Boolean).map(x => { const [label, qty, price] = x.split('^'); return { label: label || '', qty: Number(qty) || 1, price: Number(price) || 0 }; }),
+              // מצב פריטים: שם^כמות^מחיר ליחידה[^מה כלול], מופרדים ב-~ (זהה ל-Core.shareUrl במערכת הספקים)
+              items: (p[12] || '').split('~').filter(Boolean).map(x => { const [label, qty, price, desc] = x.split('^'); return { label: label || '', qty: Number(qty) || 1, price: Number(price) || 0, desc: desc || '' }; }),
               discount: Number(p[13]) || 0 };
     } catch (err) {
         console.error(err);
@@ -109,6 +109,7 @@
     const PKG_ITEMS = ITEMS_MODE ? (P.COMMON_ITEMS || []).filter(Boolean)
         : [ `${act || plainHours(svc.hours || 0)} ${svc.lead || ''}`.trim() ].concat(svc.items || [], P.COMMON_ITEMS || []).filter(Boolean);
     const catalogDesc = label => ((P.CATALOG || []).find(x => x.label === label) || {}).desc || '';
+    const itemDesc = i => i.desc || catalogDesc(i.label);   // "מה כלול" שהספק כתב, ואם אין — התיאור מהמחירון
     const lineTotal = i => (Number(i.qty) || 1) * (Number(i.price) || 0);
     const subtotal = c.items.reduce((s, i) => s + lineTotal(i), 0);
     const whatLine = ITEMS_MODE ? (c.type || L.docTitle) : `${svc.label}${c.type ? ' · ' + c.type : ''}`;
@@ -120,7 +121,7 @@
     function itemsHtml(){
         return `<table class="items-tbl"><caption class="sr">פירוט ההצעה</caption>
             <thead><tr><th scope="col">פריט</th><th scope="col" class="n">כמות</th><th scope="col" class="n">סה"כ</th></tr></thead>
-            <tbody>${c.items.map(i => { const d = catalogDesc(i.label); return `<tr><td><b>${esc(i.label)}</b>${d ? `<small>${esc(d)}</small>` : ''}</td><td class="n">${i.qty > 1 ? `${i.qty} × ${money(i.price)}` : '1'}</td><td class="n">${money(lineTotal(i))}</td></tr>`; }).join('')}</tbody>
+            <tbody>${c.items.map(i => { const d = itemDesc(i); return `<tr><td><b>${esc(i.label)}</b>${d ? `<small>${esc(d)}</small>` : ''}</td><td class="n">${i.qty > 1 ? `${i.qty} × ${money(i.price)}` : '1'}</td><td class="n">${money(lineTotal(i))}</td></tr>`; }).join('')}</tbody>
             <tfoot>${c.discount ? `<tr><td colspan="2">סכום ביניים</td><td class="n">${money(subtotal)}</td></tr><tr class="disc"><td colspan="2">הנחה</td><td class="n">−${money(c.discount)}</td></tr>` : ''}
             <tr class="tot"><td colspan="2">סה"כ</td><td class="n">${money(c.price)}</td></tr></tfoot></table>`;
     }
@@ -260,7 +261,7 @@
             </table></div>
             ${ITEMS_MODE ? `<div class="doc-section"><div class="doc-h">פירוט ההצעה</div><table class="doc-items">
               <tr class="th"><td>פריט</td><td class="n">כמות</td><td class="n">מחיר ליחידה</td><td class="n">סה"כ</td></tr>
-              ${c.items.map(i => `<tr><td>${esc(i.label)}</td><td class="n">${i.qty}</td><td class="n">${Number(i.price).toLocaleString()} ש"ח</td><td class="n">${lineTotal(i).toLocaleString()} ש"ח</td></tr>`).join('')}
+              ${c.items.map(i => `<tr><td><b>${esc(i.label)}</b>${itemDesc(i) ? `<div class="doc-desc">${esc(itemDesc(i))}</div>` : ''}</td><td class="n">${i.qty}</td><td class="n">${Number(i.price).toLocaleString()} ש"ח</td><td class="n">${lineTotal(i).toLocaleString()} ש"ח</td></tr>`).join('')}
               ${c.discount ? `<tr><td colspan="3">הנחה</td><td class="n">−${c.discount.toLocaleString()} ש"ח</td></tr>` : ''}
               <tr class="tt"><td colspan="3">סה"כ</td><td class="n">${c.price.toLocaleString()} ש"ח</td></tr></table></div>` : ''}
             ${c.notes.trim() ? `<div class="doc-section"><div class="doc-h">הערות וסיכומים</div><div class="doc-notes">${esc(c.notes)}</div></div>` : ''}
@@ -349,7 +350,7 @@
     async function sendToBusiness(pdfBlob, sigBlob, safe, m){
         const fields = {
             _subject: `הסכם חתום חדש — ${c.name} (${c.type})`,
-            'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)`).join(' · ') : svc.label,
+            'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)${itemDesc(i) ? ' — ' + itemDesc(i) : ''}`).join(' · ') : svc.label,
             'מיקום': c.location, 'תאריך האירוע': c.date,
             'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
             'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'),
