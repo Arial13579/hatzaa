@@ -146,6 +146,7 @@ html.has-cookie-bar #cal-fab-wrap{ bottom:calc(env(safe-area-inset-bottom) + 96p
 .contact-btns .btn.mail{ flex-basis:100%; font-size:14px; }
 .contact-btns .btn svg{ color:var(--brand); }
 
+#pdf-doc table.doc-items .doc-desc{ font-size:11px; color:#5b6b69; font-weight:400; margin-top:2px; line-height:1.4; }
 #pdf-doc table.doc-items td{ font-size:12.5px; padding:7px 10px; }
 #pdf-doc table.doc-items .th td{ background:#F4F4F6; font-weight:800; }
 #pdf-doc table.doc-items .tt td{ font-weight:900; background:var(--brand-soft); }
