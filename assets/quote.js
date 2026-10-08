@@ -307,7 +307,14 @@
         } catch (err) { console.warn('status update failed', err); criticalSaveDone = true; return; }
         criticalSaveDone = true;
         if (pdfBlob && pdfBlob.size <= PDF_MAX_STORE_BYTES) {
-            try { const pdfData = await withTimeout(blobToBase64(pdfBlob), 10000, null); if (pdfData) await fb.fs.updateDoc(ref, { pdfData }); }
+            try {
+                const pdfData = await withTimeout(blobToBase64(pdfBlob), 10000, null);
+                if (pdfData) {
+                    // PDF במסמך נפרד (לוח הבקרה של העסק נטען מהר); אם הכללים עוד ישנים — כמו קודם, בתוך ההצעה
+                    try { await fb.fs.setDoc(fb.fs.doc(fb.db, 'tenants', T.slug, 'quotes', c.quoteId, 'pdf', 'file'), { pdfData, at: fb.fs.serverTimestamp() }); await fb.fs.updateDoc(ref, { hasPdf: true }); }
+                    catch (e2) { await fb.fs.updateDoc(ref, { pdfData }); }
+                }
+            }
             catch (err) { console.warn('pdf save failed', err); }
         }
     }
