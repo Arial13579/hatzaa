@@ -185,3 +185,5 @@ html.has-cookie-bar #cal-fab-wrap{ bottom:calc(env(safe-area-inset-bottom) + 96p
     body.printing-doc #pdf-doc{ position:static !important; visibility:visible !important; width:100% !important; z-index:auto !important; }
     #pdf-doc{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
+
+.money .total .was{ font-size:12.5px; font-weight:700; color:var(--ink); margin-top:2px; }

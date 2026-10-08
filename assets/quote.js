@@ -97,7 +97,9 @@
               price: Number(p[7]) || 0, deposit: Number(p[8]) || 0, notes: p[9] || '', quoteId: p[10] || '', service: p[11] || P.DEFAULT_SERVICE,
               // מצב פריטים: שם^כמות^מחיר ליחידה[^מה כלול], מופרדים ב-~ (זהה ל-Core.shareUrl במערכת הספקים)
               items: (p[12] || '').split('~').filter(Boolean).map(x => { const [label, qty, price, desc] = x.split('^'); return { label: label || '', qty: Number(qty) || 1, price: Number(price) || 0, desc: desc || '' }; }),
-              discount: Number(p[13]) || 0 };
+              discount: Number(p[13]) || 0,
+              // חבילה (מחירון אוטומטי): שם^שעות^שורת פתיחה^מה כלול (~) — תמונת מצב מרגע יצירת ההצעה
+              pkg: p[14] ? (([label, hours, lead, inc]) => ({ label: label || '', hours: Number(hours) || 0, lead: lead || '', items: (inc || '').split('~').filter(Boolean) }))(p[14].split('^')) : null };
     } catch (err) {
         console.error(err);
         renderShell(`<div class="card card-b rise" style="text-align:center;color:var(--bad);font-weight:700">הקישור אינו תקין. בקשו מ-${esc(B.name)} קישור חדש.</div>`);
@@ -105,7 +107,7 @@
     }
 
     const ITEMS_MODE = c.items.length > 0;
-    const svc = ITEMS_MODE ? { label: '', items: [] } : serviceOf(c.service), act = hoursWord(c.startTime, c.endTime), bal = c.price - c.deposit;
+    const svc = ITEMS_MODE ? { label: '', items: [] } : (c.pkg && c.pkg.label ? c.pkg : serviceOf(c.service)), act = hoursWord(c.startTime, c.endTime), bal = c.price - c.deposit;
     const PKG_ITEMS = ITEMS_MODE ? (P.COMMON_ITEMS || []).filter(Boolean)
         : [ `${act || plainHours(svc.hours || 0)} ${svc.lead || ''}`.trim() ].concat(svc.items || [], P.COMMON_ITEMS || []).filter(Boolean);
     const catalogDesc = label => ((P.CATALOG || []).find(x => x.label === label) || {}).desc || '';
@@ -154,7 +156,7 @@
                 ${ITEMS_MODE ? '' : `<div class="fact"><span class="k"><i data-i="file"></i>${esc(L.service)}</span><span class="v">${esc(svc.label)}</span></div>`}
             </div>
             <div class="money">
-                <div class="total"><div class="k">מחיר כולל</div><div class="v">${money(c.price)}</div></div>
+                <div class="total"><div class="k">מחיר כולל</div><div class="v">${money(c.price)}</div>${!ITEMS_MODE && c.discount ? `<div class="was">במקום <s>${money(c.price + c.discount)}</s> · הנחה ${money(c.discount)}</div>` : ''}</div>
                 <div><div class="k">מקדמה</div><div class="v">${money(c.deposit)}</div></div>
                 <div><div class="k">${esc(L.balance)}</div><div class="v">${money(bal)}</div></div>
             </div>
@@ -256,6 +258,7 @@
               ${ITEMS_MODE ? '' : `<tr><td class="k">${esc(L.service)}</td><td colspan="3">${esc(svc.label)}</td></tr>`}
               <tr><td class="k">מיקום</td><td>${esc(c.location)}</td><td class="k">תאריך</td><td dir="ltr" style="text-align:right">${esc(c.date)}</td></tr>
               <tr><td class="k">${c.endTime ? 'שעות' : 'שעה'}</td><td><span dir="ltr">${esc(c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'))}</span>${act ? ' &nbsp;·&nbsp; ' + esc(act) : ''}</td><td class="k">מוזמנים</td><td>${c.guests ? 'עד ' + Number(c.guests).toLocaleString() : '—'}</td></tr>
+              ${!ITEMS_MODE && c.discount ? `<tr><td class="k">לפני הנחה</td><td>${(c.price + c.discount).toLocaleString()} ש"ח</td><td class="k">הנחה</td><td>${c.discount.toLocaleString()} ש"ח</td></tr>` : ''}
               <tr><td class="k">מחיר כולל</td><td class="hl">${c.price.toLocaleString()} ש"ח</td><td class="k">מקדמה</td><td>${c.deposit.toLocaleString()} ש"ח</td></tr>
               <tr><td class="k">${esc(L.balance)}</td><td colspan="3"><b>${bal.toLocaleString()} ש"ח</b></td></tr>
             </table></div>
@@ -352,7 +355,7 @@
             _subject: `הסכם חתום חדש — ${c.name} (${c.type})`,
             'שם הלקוח': c.name, 'סוג אירוע': c.type, [ITEMS_MODE ? 'פירוט' : L.service]: ITEMS_MODE ? c.items.map(i => `${i.label}${i.qty > 1 ? ' ×' + i.qty : ''} (${lineTotal(i)} ש"ח)${itemDesc(i) ? ' — ' + itemDesc(i) : ''}`).join(' · ') : svc.label,
             'מיקום': c.location, 'תאריך האירוע': c.date,
-            'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
+            'שעות': c.endTime ? `${c.startTime} - ${c.endTime}` : (c.startTime || '—'), 'כמות מוזמנים': c.guests || '—', ...(c.discount ? { 'הנחה': `${c.discount} ש"ח` } : {}), 'מחיר כולל': `${c.price} ש"ח`, 'מקדמה': `${c.deposit} ש"ח`,
             'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'),
             'דפדפן (User Agent)': m.ua, 'ההסכם החתום (PDF)': 'מצורף למייל, ושמור גם בלוח הבקרה במערכת'
         };
