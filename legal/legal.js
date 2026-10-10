@@ -7,7 +7,9 @@
     if (!/^[a-z0-9-]{2,40}$/.test(slug)) { app.innerHTML = '<div class="page"><div class="card card-b">הדף לא נמצא.</div></div>'; return; }
     const s = document.createElement('script');
     s.src = '../' + slug + '/config.js';
-    s.onerror = () => { app.innerHTML = '<div class="page"><div class="card card-b">הדף לא נמצא.</div></div>'; };
+    // ספק שנוצר מלוח הניהול — אין לו config.js, וההגדרות נטענות מהמאגר
+    s.onerror = () => Brand.remoteTenant(slug).then(T => { window.TENANT = T; render(); })
+        .catch(() => { app.innerHTML = '<div class="page"><div class="card card-b">הדף לא נמצא.</div></div>'; });
     s.onload = render;
     document.head.appendChild(s);
 
