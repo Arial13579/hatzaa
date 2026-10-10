@@ -35,7 +35,8 @@
     // לוגו (תמונה) או אות ראשונה של שם העסק
     function logoHtml(T, base){
         const B = T.business || {};
-        if (B.logo) return `<span class="vlogo has-img"><img src="${esc(base + B.logo)}" alt="${esc(B.name)}"></span>`;
+        // לוגו של ספק שנוצר מלוח הניהול נשמר כתמונה מוטמעת (data:image/…); אחרת — קובץ בתיקייה של הספק
+        if (B.logo) return `<span class="vlogo has-img"><img src="${esc(/^data:image\//.test(B.logo) ? B.logo : base + B.logo)}" alt="${esc(B.name)}"></span>`;
         return `<span class="vlogo" aria-hidden="true">${esc((B.name || '?').trim().charAt(0))}</span>`;
     }
     function headerHtml(T, base){
@@ -62,5 +63,26 @@
             <p style="margin:0">© ${new Date().getFullYear()} · כל הזכויות שמורות</p>
         </footer>`;
     }
-    window.Brand = { apply, headerHtml, footerHtml, logoHtml, esc };
+    /* ספק שנוצר מלוח הניהול: ההגדרות שמורות ב-vendorConfigs/<slug> (קריאה ציבורית לפי מזהה, כמו config.js) */
+    function restBase(){
+        const E = window.__EMU__, P = window.PLATFORM || {};
+        const project = (P.firebase && P.firebase.projectId) || 'check-b2a66', db = P.firestoreDatabaseId || 'default';
+        return (E ? 'http://127.0.0.1:' + E.firestore + '/v1' : 'https://firestore.googleapis.com/v1') + `/projects/${project}/databases/${db}/documents/`;
+    }
+    async function remoteTenant(slug){
+        if (!/^[a-z0-9-]{2,40}$/.test(slug || '')) throw new Error('bad slug');
+        const r = await fetch(restBase() + 'vendorConfigs/' + slug);
+        if (!r.ok) throw new Error('not found');
+        const j = await r.json(), T = JSON.parse((((j.fields || {}).config) || {}).stringValue || 'null');
+        if (!T || typeof T !== 'object') throw new Error('not found');
+        T.slug = slug; T.dynamic = true;
+        return T;
+    }
+    // קישור קצר בלי ?t= — הספק נמצא בקישור עצמו (shortLinks/<id>.tenant)
+    async function tenantOfShortLink(id){
+        if (!/^[a-z0-9]{6,20}$/.test(id || '')) return '';
+        const r = await fetch(restBase() + 'shortLinks/' + id); if (!r.ok) return '';
+        const j = await r.json(); return (((j.fields || {}).tenant) || {}).stringValue || '';
+    }
+    window.Brand = { apply, headerHtml, footerHtml, logoHtml, esc, remoteTenant, tenantOfShortLink };
 })();
