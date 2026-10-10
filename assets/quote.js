@@ -10,6 +10,8 @@
     const esc = Brand.esc, $ = id => document.getElementById(id);
     const params = new URLSearchParams(location.search);
     let dataParam = params.get('q');
+    // הצעה לדוגמה (?demo=1): אפשר לנסות לחתום, וה-PDF יורד למכשיר — אבל שום דבר לא נשלח ולא נשמר
+    const DEMO = params.get('demo') === '1';
     /* ---------- Firebase (פתיחת קישור קצר ועדכון הסטטוס — בלי התחברות) ---------- */
     let fbPromise = null;
     function initFirebase(){
@@ -256,6 +258,13 @@
                 </form>
             </div>
         </section>`);
+    if (DEMO) {
+        const note = document.createElement('div');
+        note.className = 'callout rise demo-note'; note.setAttribute('role', 'note');
+        note.innerHTML = '<b>זו הצעה לדוגמה.</b> ככה הלקוחות שלכם יקבלו את ההצעה ויחתמו עליה מהטלפון. נסו לחתום למטה — שום דבר לא נשלח, וה-PDF פשוט יירד אליכם למכשיר.';
+        const pg = app.querySelector('.page'), first = pg && pg.querySelector('section.card');
+        if (first) pg.insertBefore(note, first);
+    }
 
     // הצעה שפג תוקפה: אי אפשר לחתום — מזמינים את הלקוח לבקש הצעה מעודכנת
     if (EXPIRED) {
@@ -468,13 +477,18 @@
         try { pdfBlob = await generatePdfBlob(lastSigDataUrl, lastSigMeta); } catch (err) { console.error('PDF failed', err); }
         let emailOk = false;
         try {
-            const [ok] = await Promise.all([ sendToBusiness(pdfBlob, sigBlob, safe, lastSigMeta), withTimeout(saveSignedQuote(lastSigMeta, pdfBlob), 15000, null) ]);
-            emailOk = ok;
+            if (DEMO) emailOk = true;
+            else {
+                const [ok] = await Promise.all([ sendToBusiness(pdfBlob, sigBlob, safe, lastSigMeta), withTimeout(saveSignedQuote(lastSigMeta, pdfBlob), 15000, null) ]);
+                emailOk = ok;
+            }
         } catch (err) { console.error(err); }
         if (pdfBlob) { try { triggerDownload(pdfBlob, `${B.name}_Contract_${safe}.pdf`); } catch (err) {} }
         overlay.style.display = 'none';
         const box = $('pdf-hide-controls');
-        if (pdfBlob && emailOk) {
+        if (DEMO) {
+            box.innerHTML = `<div class="done">${Icons.svg('party')}ככה הלקוח שלכם חותם!<span>${pdfBlob ? 'ה-PDF החתום ירד למכשיר. ' : ''}במערכת האמיתית ההסכם נשלח אליכם גם במייל ונשמר בלוח הבקרה. זו הייתה הדגמה, ושום דבר לא נשלח.</span></div>`;
+        } else if (pdfBlob && emailOk) {
             box.innerHTML = `<div class="done">${Icons.svg('party')}ההסכם נחתם בהצלחה!<span>ה-PDF ירד למכשיר שלכם והאישור נשלח ל-${esc(B.name)}.</span></div>`;
         } else {
             box.innerHTML = `<div class="warnbox"><p>${pdfBlob ? '✓ ה-PDF ירד למכשיר.' : '⚠️ יצירת ה-PDF האוטומטית נכשלה.'}</p><p>${emailOk ? '✓ האישור והחתימה נשלחו.' : `⚠️ שליחת האישור לא הושלמה — צרו קשר עם ${esc(B.name)}.`}</p><p>להורדה / הדפסה של עותק גיבוי מלא:</p></div>
