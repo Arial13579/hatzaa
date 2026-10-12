@@ -75,7 +75,7 @@ a{ color:inherit; }
 /* ---------- חתימה ---------- */
 .lbl{ display:block; font-size:13px; font-weight:700; margin-bottom:6px; }
 .sig-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-.link{ background:none; border:0; padding:0; cursor:pointer; font:inherit; font-weight:700; font-size:13.5px; color:var(--brand); text-decoration:underline; text-underline-offset:3px; }
+.link{ background:none; border:0; padding:6px 4px; min-height:32px; cursor:pointer; font:inherit; font-weight:700; font-size:13.5px; color:var(--brand); text-decoration:underline; text-underline-offset:3px; }
 canvas#sig-canvas{ display:block; width:100%; height:180px; touch-action:none; cursor:crosshair; border-radius:14px;
     border:1.5px dashed var(--brand-mid); background:#fff;
     background-image:linear-gradient(to top, transparent 38px, var(--line) 38px, var(--line) 40px, transparent 40px); }
