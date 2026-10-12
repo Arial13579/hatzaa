@@ -79,7 +79,8 @@
         try {
             const fb = /^[a-z0-9]{6,20}$/.test(shortKey) ? await initFirebase() : null;
             const snap = fb ? await fb.fs.getDoc(fb.fs.doc(fb.db, 'shortLinks', shortKey)) : null;
-            if (snap && snap.exists()) dataParam = snap.data().q;
+            // הקישור שייך לעסק של הדף הזה בלבד (אי אפשר להציג הצעה של עסק אחד במיתוג של עסק אחר)
+            if (snap && snap.exists() && (!snap.data().tenant || snap.data().tenant === T.slug)) dataParam = snap.data().q;
         } catch (err) { console.warn('short link failed', err); }
         if (!dataParam) {
             renderShell(`<div class="card card-b rise" style="text-align:center;color:var(--bad);font-weight:700">ההצעה לא נמצאה. ייתכן שהיא נמחקה — בקשו מ-${esc(B.name)} קישור חדש.</div>`);
@@ -96,7 +97,7 @@
         const p = b64UrlDecode(dataParam).split('|');
         if (p.length < 9) throw new Error('bad link');
         c = { name: p[0], type: p[1], location: p[2], date: p[3], startTime: p[4], endTime: p[5], guests: p[6] || '',
-              price: Number(p[7]) || 0, deposit: Number(p[8]) || 0, notes: p[9] || '', quoteId: p[10] || '', service: p[11] || P.DEFAULT_SERVICE,
+              price: Number(p[7]) || 0, deposit: Number(p[8]) || 0, notes: p[9] || '', quoteId: /^[A-Za-z0-9_-]{1,40}$/.test(p[10] || '') ? p[10] : '', service: p[11] || P.DEFAULT_SERVICE,
               // מצב פריטים: שם^כמות^מחיר ליחידה[^מה כלול], מופרדים ב-~ (זהה ל-Core.shareUrl במערכת הספקים)
               items: (p[12] || '').split('~').filter(Boolean).map(x => { const [label, qty, price, desc] = x.split('^'); return { label: label || '', qty: Number(qty) || 1, price: Number(price) || 0, desc: desc || '' }; }),
               discount: Number(p[13]) || 0,
@@ -311,7 +312,7 @@
         try {
             const base = { status: 'signed', signedAt: fb.fs.serverTimestamp(), ip: null, userAgent: meta && meta.ua ? String(meta.ua).slice(0, 500) : null };
             // signedQ: הפרטים בדיוק כפי שהוצגו ללקוח. אם הכללים עוד לא עודכנו — חותמים בלעדיו (החתימה לא הולכת לאיבוד)
-            try { await fb.fs.updateDoc(ref, { ...base, signedQ: String(dataParam || '').slice(0, 7900) }); }
+            try { await fb.fs.updateDoc(ref, { ...base, signedQ: String(dataParam || '') }); }
             catch (e1) { await fb.fs.updateDoc(ref, base); }
         } catch (err) { console.warn('status update failed', err); criticalSaveDone = true; return; }
         criticalSaveDone = true;

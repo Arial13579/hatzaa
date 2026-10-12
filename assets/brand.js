@@ -69,12 +69,56 @@
         const project = (P.firebase && P.firebase.projectId) || 'check-b2a66', db = P.firestoreDatabaseId || 'default';
         return (E ? 'http://127.0.0.1:' + E.firestore + '/v1' : 'https://firestore.googleapis.com/v1') + `/projects/${project}/databases/${db}/documents/`;
     }
+    /* הגדרות ספק שנשמרו במאגר (vendorConfigs) אינן קוד שלנו — מנקים לפני שימוש: בלי תגיות, מספרים כמספרים,
+       צבעים וקישורים בפורמט תקין בלבד. כך שום ערך לא יכול להריץ קוד בדף. */
+    function cleanConfig(T){
+        const deep = v => Array.isArray(v) ? v.map(deep) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)]))
+            : typeof v === 'string' ? v.replace(/[<>]/g, '') : (typeof v === 'number' || typeof v === 'boolean' || v == null) ? v : '';
+        T = deep(T && typeof T === 'object' && !Array.isArray(T) ? T : {});
+        const N = v => Math.max(0, Number(v) || 0), str = v => typeof v === 'string' ? v : '', arr = v => Array.isArray(v) ? v : [];
+        const strs = v => arr(v).map(str).filter(Boolean), hex = (v, d) => /^#[0-9a-f]{6}$/i.test(v) ? v : d;
+        const B = T.business = Object.assign({}, T.business);
+        ['name', 'tagline', 'email', 'phone', 'businessId'].forEach(k => { B[k] = str(B[k]); });
+        B.logo = /^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(str(B.logo)) ? B.logo : '';
+        ['website', 'instagram', 'facebook', 'tiktok'].forEach(k => { if (B[k] !== undefined && !/^https:\/\/[^\s"'`]+$/i.test(str(B[k]))) delete B[k]; });
+        const th = T.theme = Object.assign({}, T.theme);
+        th.brand = hex(th.brand, '#0F766E'); th.background = hex(th.background, '#F7F6F3'); th.font = /^[A-Za-z ]{1,40}$/.test(str(th.font)) ? th.font : 'Assistant';
+        const L = T.labels = Object.assign({}, T.labels);
+        ['service', 'included', 'docTitle'].forEach(k => { if (L[k] !== undefined) L[k] = str(L[k]); });
+        L.eventTypes = strs(L.eventTypes);
+        const P = T.pricing = Object.assign({}, T.pricing), sv = {};
+        Object.entries(P.SERVICES && typeof P.SERVICES === 'object' ? P.SERVICES : {}).forEach(([k, s]) => {
+            if (/^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(k) && s && typeof s === 'object')
+                sv[k] = { label: str(s.label), lead: str(s.lead), base: N(s.base), hours: N(s.hours), extraHour: N(s.extraHour), items: strs(s.items) };
+        });
+        P.SERVICES = sv;
+        if (!sv[P.DEFAULT_SERVICE]) P.DEFAULT_SERVICE = Object.keys(sv)[0] || '';
+        ['GUEST_TIERS', 'TRAVEL_TIERS'].forEach(k => { P[k] = arr(P[k]).map(t => ({ max: Number(t && t.max) || 0, price: N(t && t.price), label: str(t && t.label) })); });
+        P.CATALOG = arr(P.CATALOG).map(c => ({ label: str(c && c.label), price: N(c && c.price), desc: str(c && c.desc) }));
+        P.COMMON_ITEMS = strs(P.COMMON_ITEMS);
+        ['DEPOSIT', 'EVENT_HOURS', 'QUOTE_VALID_DAYS'].forEach(k => { if (P[k] != null) P[k] = N(P[k]); });
+        if (P.DEPOSIT_PERCENT != null) P.DEPOSIT_PERCENT = Math.min(100, N(P.DEPOSIT_PERCENT));
+        if (P.MODE !== undefined) P.MODE = P.MODE === 'items' ? 'items' : '';
+        P.EXTRA_FRACTION = Object.fromEntries(Object.entries(P.EXTRA_FRACTION && typeof P.EXTRA_FRACTION === 'object' ? P.EXTRA_FRACTION : { 0: 0, 15: 0.25, 30: 0.5, 45: 0.75 }).map(([k, v]) => [String(N(k)), N(v)]));
+        if (P.ORIGIN) { const o = P.ORIGIN; P.ORIGIN = { name: str(o.name) }; if (Number.isFinite(Number(o.lat)) && Number.isFinite(Number(o.lon)) && o.lat !== '' && o.lon !== '') { P.ORIGIN.lat = Number(o.lat); P.ORIGIN.lon = Number(o.lon); } }
+        if (P.PAYMENT_METHODS !== undefined) P.PAYMENT_METHODS = strs(P.PAYMENT_METHODS);
+        if (P.BALANCE_DUE !== undefined) P.BALANCE_DUE = str(P.BALANCE_DUE);
+        T.terms = strs(T.terms);
+        const pol = T.policy = Object.assign({}, T.policy);
+        ['coolingDays', 'coolingNoticeDays', 'refundDays'].forEach(k => { pol[k] = N(pol[k]); });
+        pol.tiers = strs(pol.tiers); pol.postpone = str(pol.postpone);
+        if (T.og !== undefined) T.og = { head: str(T.og && T.og.head), cta: str(T.og && T.og.cta) };
+        T.sample = T.sample === true;
+        return T;
+    }
     async function remoteTenant(slug){
         if (!/^[a-z0-9-]{2,40}$/.test(slug || '')) throw new Error('bad slug');
         const r = await fetch(restBase() + 'vendorConfigs/' + slug);
         if (!r.ok) throw new Error('not found');
-        const j = await r.json(), T = JSON.parse((((j.fields || {}).config) || {}).stringValue || 'null');
+        const j = await r.json();
+        let T = null; try { T = JSON.parse((((j.fields || {}).config) || {}).stringValue || 'null'); } catch(e) {}
         if (!T || typeof T !== 'object') throw new Error('not found');
+        T = cleanConfig(T);
         T.slug = slug; T.dynamic = true;
         return T;
     }
@@ -84,5 +128,5 @@
         const r = await fetch(restBase() + 'shortLinks/' + id); if (!r.ok) return '';
         const j = await r.json(); return (((j.fields || {}).tenant) || {}).stringValue || '';
     }
-    window.Brand = { apply, headerHtml, footerHtml, logoHtml, esc, remoteTenant, tenantOfShortLink };
+    window.Brand = { apply, headerHtml, footerHtml, logoHtml, esc, remoteTenant, tenantOfShortLink, cleanConfig };
 })();
