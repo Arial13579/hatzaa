@@ -25,6 +25,8 @@
         const list = arr => `<ul style="margin:0;padding-inline-start:20px">${arr.map(x => `<li>${x}</li>`).join('')}</ul>`;
         // מדיניות הביטול של הספק (מתוך config.js → policy). ברירת מחדל: לפי חוק הגנת הצרכן.
         const POL = Object.assign({ coolingDays: 14, coolingNoticeDays: 7, refundDays: 14, tiers: [] }, T.policy || {});
+        ['coolingDays', 'coolingNoticeDays', 'refundDays'].forEach(k => { POL[k] = Math.max(0, Math.round(Number(POL[k]) || 0)); });
+        POL.tiers = Array.isArray(POL.tiers) ? POL.tiers.map(String) : [];
         const docs = {
             terms: ['תנאי שימוש', [
                 ['כללי', `מסמך זה מסדיר את השימוש בדף הצעת המחיר וההסכם הדיגיטלי של ${name} ("העסק"). צפייה בהצעה וחתימה עליה מהוות הסכמה לתנאים אלה.`],
