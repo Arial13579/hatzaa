@@ -52,7 +52,7 @@
             B.phone ? `<a href="tel:${esc(String(B.phone).replace(/[^\d+]/g, ''))}" class="ltr">${esc(B.phone)}</a>` : ''
         ].filter(Boolean).join(' · ');
         return `<footer class="foot">
-            <b>${esc(B.name)}</b>${B.businessId ? ` · ${esc(B.businessId)}` : ''}
+            <b>${esc(B.name)}</b>${B.businessId ? ` · ${esc(B.businessId)}` : ''}${B.address ? ` · ${esc(B.address)}` : ''}
             ${contact ? `<p style="margin:6px 0 0">${contact}</p>` : ''}
             <nav class="pills" aria-label="מסמכים">
                 <a href="${legalBase}terms.html?${qs}">תנאי שימוש</a>
@@ -78,7 +78,7 @@
         const N = v => Math.max(0, Number(v) || 0), str = v => typeof v === 'string' ? v : '', arr = v => Array.isArray(v) ? v : [];
         const strs = v => arr(v).map(str).filter(Boolean), hex = (v, d) => /^#[0-9a-f]{6}$/i.test(v) ? v : d;
         const B = T.business = Object.assign({}, T.business);
-        ['name', 'tagline', 'email', 'phone', 'businessId'].forEach(k => { B[k] = str(B[k]); });
+        ['name', 'tagline', 'email', 'phone', 'businessId', 'address'].forEach(k => { B[k] = str(B[k]); });
         B.logo = /^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(str(B.logo)) ? B.logo : '';
         ['website', 'instagram', 'facebook', 'tiktok'].forEach(k => { if (B[k] !== undefined && !/^https:\/\/[^\s"'`]+$/i.test(str(B[k]))) delete B[k]; });
         const th = T.theme = Object.assign({}, T.theme);

@@ -17,7 +17,7 @@
         const T = window.TENANT, B = T.business || {}, esc = Brand.esc;
         Brand.apply(T);
         window.PRIVACY_URL = 'privacy.html?t=' + slug;
-        const name = `<strong>${esc(B.name)}</strong>${B.businessId ? ` (${esc(B.businessId)})` : ''}`;
+        const name = `<strong>${esc(B.name)}</strong>${B.businessId ? ` (${esc(B.businessId)})` : ''}${B.address ? `, ${esc(B.address)}` : ''}`;
         const tel = String(B.phone || '').replace(/[^\d+]/g, '');
         const mail = B.email ? `<a href="mailto:${esc(B.email)}">${esc(B.email)}</a>` : '';
         const phone = B.phone ? `<a href="tel:${esc(tel)}" class="ltr">${esc(B.phone)}</a>` : '';

@@ -376,7 +376,7 @@
               <img class="sig" src="${sig}" alt="חתימת הלקוח">
               <div class="doc-meta">חתימה דיגיטלית · תאריך: ${m.ts.toLocaleDateString('he-IL')} · שעה: ${m.ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}<br>דפדפן: ${esc(m.ua)}</div>
             </div>
-            <div class="doc-foot">${esc(B.name)}${B.businessId ? ' · ' + esc(B.businessId) : ''} · ${esc(SUPPLIER_EMAIL)}${B.phone ? ' · ' + esc(B.phone) : ''}</div>
+            <div class="doc-foot">${esc(B.name)}${B.businessId ? ' · ' + esc(B.businessId) : ''}${B.address ? ' · ' + esc(B.address) : ''} · ${esc(SUPPLIER_EMAIL)}${B.phone ? ' · ' + esc(B.phone) : ''}</div>
           </div>`;
     }
     const PDF_W = 760;
