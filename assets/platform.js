@@ -8,5 +8,7 @@ window.PLATFORM = {
         messagingSenderId: '928170638673',
         appId:             '1:928170638673:web:878d75caeda5469296e770'
     },
-    firestoreDatabaseId: 'default'
+    firestoreDatabaseId: 'default',
+    // ההסכם החתום של לקוח נשלח רק לבעל העסק (business.email). אף פעם לא לכתובות האלה (מפעיל המערכת)
+    noMailTo: ['arielkahalani1@gmail.com']
 };

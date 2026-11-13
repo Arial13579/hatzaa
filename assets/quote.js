@@ -5,8 +5,9 @@
     const B = Object.assign({ name: '', tagline: '', email: '', phone: '', businessId: '' }, T.business || {});
     const P = T.pricing || {};
     const L = Object.assign({ service: 'חבילה', included: 'מה כלול', docTitle: 'הצעת מחיר והסכם', balance: 'יתרה בסיום', alwaysIncluded: 'כלול תמיד' }, T.labels || {});
-    const SUPPLIER_EMAIL = B.email;
-    const WEB3FORMS_KEY = T.web3formsKey || '';
+    // המייל על חתימה הולך רק לבעל העסק — לא למפעיל המערכת (גם אם הוזן בטעות)
+    const SUPPLIER_EMAIL = (PF.noMailTo || []).map(x => String(x).toLowerCase()).includes(String(B.email || '').trim().toLowerCase()) ? '' : String(B.email || '').trim();
+    const WEB3FORMS_KEY = SUPPLIER_EMAIL ? (T.web3formsKey || '') : '';
     const esc = Brand.esc, $ = id => document.getElementById(id);
     const params = new URLSearchParams(location.search);
     let dataParam = params.get('q');
