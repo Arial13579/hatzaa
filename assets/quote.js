@@ -138,6 +138,17 @@
     const validDate = ymd(c.validUntil), today0 = new Date(); today0.setHours(0, 0, 0, 0);
     const EXPIRED = !!validDate && today0 > validDate;
     const hasPayInfo = c.payment.methods.length || c.payment.due;
+    // מעקב צפיות: כמה פעמים הלקוח פתח את ההצעה ומתי לאחרונה (לוח הבקרה של הספק). לא בהדגמה, לא כשהספק עצמו פותח מהמערכת,
+    // ופעם אחת בכל לשונית (רענון לא נספר שוב). בלי שום פרט מזהה — רק מונה ותאריך.
+    (async () => {
+        try {
+            if (DEMO || !c.quoteId || /(^|\.)snapbox\.co\.il$/.test((() => { try { return new URL(document.referrer).hostname; } catch (e) { return ''; } })())) return;
+            const key = 'hz.seen.' + c.quoteId;
+            try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) {}
+            const fb = await initFirebase(); if (!fb) return;
+            await fb.fs.updateDoc(fb.fs.doc(fb.db, 'tenants', T.slug, 'quotes', c.quoteId), { views: fb.fs.increment(1), lastViewedAt: fb.fs.serverTimestamp() });
+        } catch (e) { /* הצעה שנמחקה / כללים ישנים — לא משנה ללקוח */ }
+    })();
     // פירוט מחיר (מחירון אוטומטי): מוצג רק אם הסכום תואם למחיר הסופי
     const bdSum = c.breakdown.reduce((s, x) => s + x.amount, 0);
     const SHOW_BD = !ITEMS_MODE && c.breakdown.length > 0 && bdSum - (c.discount || 0) === c.price;
@@ -491,6 +502,7 @@
             box.innerHTML = `<div class="done">${Icons.svg('party')}ככה הלקוח שלכם חותם!<span>${pdfBlob ? 'ה-PDF החתום ירד למכשיר. ' : ''}במערכת האמיתית ההסכם נשלח אליכם גם במייל ונשמר בלוח הבקרה. זו הייתה הדגמה, ושום דבר לא נשלח.</span></div>`;
         } else if (pdfBlob && emailOk) {
             box.innerHTML = `<div class="done">${Icons.svg('party')}ההסכם נחתם בהצלחה!<span>ה-PDF ירד למכשיר שלכם והאישור נשלח ל-${esc(B.name)}.</span></div>`;
+            addBitBox(box);
         } else {
             box.innerHTML = `<div class="warnbox"><p>${pdfBlob ? '✓ ה-PDF ירד למכשיר.' : '⚠️ יצירת ה-PDF האוטומטית נכשלה.'}</p><p>${emailOk ? '✓ האישור והחתימה נשלחו.' : `⚠️ שליחת האישור לא הושלמה — צרו קשר עם ${esc(B.name)}.`}</p><p>להורדה / הדפסה של עותק גיבוי מלא:</p></div>
                 <button type="button" id="print-fallback" class="btn btn-block">${Icons.svg('printer')} הורדה / הדפסה של עותק גיבוי</button>`;
@@ -498,6 +510,26 @@
             btn.disabled = false;
         }
     });
+
+    /* ---------- אחרי החתימה: מספר הטלפון של העסק להעברת המקדמה בביט (עם כפתור העתקה) ---------- */
+    function addBitBox(box){
+        const ph = String(B.bitPhone || B.phone || '').trim();
+        if (!ph || !/^[\d+\-() ]{7,20}$/.test(ph)) return;
+        const digits = ph.replace(/[^\d]/g, '').replace(/^972/, '0');
+        const amt = Number(c.deposit) > 0 ? money(c.deposit) : '';
+        box.insertAdjacentHTML('beforeend', `<div class="bitbox rise" role="group" aria-label="תשלום המקדמה בביט">
+            <div class="bit-h"><span class="bit-logo" aria-hidden="true">bit</span><div><b>תשלום ${amt ? 'המקדמה ' + amt : 'המקדמה'} בביט</b><small>להעברה ל-${esc(B.name)}</small></div></div>
+            <div class="bit-row"><span class="bit-num ltr" id="bit-num">${esc(digits)}</span><button type="button" class="btn bit-copy" id="bit-copy">${Icons.svg('copy')}<span>העתקת המספר</span></button></div>
+            <p class="bit-tip">פותחים את ביט ← "העברה" ← מדביקים את המספר${amt ? ' ← ' + amt : ''}</p></div>`);
+        $('bit-copy').addEventListener('click', async () => {
+            const lbl = $('bit-copy').querySelector('span');
+            let ok = false;
+            try { await navigator.clipboard.writeText(digits); ok = true; } catch (e) {
+                try { const t = document.createElement('textarea'); t.value = digits; document.body.appendChild(t); t.select(); ok = document.execCommand('copy'); t.remove(); } catch (e2) {} }
+            lbl.textContent = ok ? '✓ הועתק' : 'סמנו והעתיקו';
+            setTimeout(() => { lbl.textContent = 'העתקת המספר'; }, 2500);
+        });
+    }
 
     /* ---------- הוספה ליומן ---------- */
     function eventDateParts(){
