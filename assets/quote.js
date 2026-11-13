@@ -471,6 +471,7 @@
             'יתרה לתשלום': `${bal} ש"ח`, 'הערות': c.notes || '—', 'נחתם בתאריך': m.ts.toLocaleString('he-IL'),
             'דפדפן (User Agent)': m.ua, 'ההסכם החתום (PDF)': 'מצורף למייל, ושמור גם בלוח הבקרה במערכת'
         };
+        if (!SUPPLIER_EMAIL) return true;   // אין למי לשלוח מייל (או שזו כתובת חסומה) — החתימה נשמרת בלוח הבקרה של העסק, וזה מספיק
         let ok = await sendViaWeb3Forms(fields, pdfBlob, sigBlob, safe);
         if (!ok) ok = await sendViaFormSubmit(fields, pdfBlob, sigBlob, safe);
         return ok;
