@@ -333,7 +333,13 @@
                 const pdfData = await withTimeout(blobToBase64(pdfBlob), 10000, null);
                 if (pdfData) {
                     // PDF במסמך נפרד (לוח הבקרה של העסק נטען מהר); אם הכללים עוד ישנים — כמו קודם, בתוך ההצעה
-                    try { await fb.fs.setDoc(fb.fs.doc(fb.db, 'tenants', T.slug, 'quotes', c.quoteId, 'pdf', 'file'), { pdfData, at: fb.fs.serverTimestamp() }); await fb.fs.updateDoc(ref, { hasPdf: true }); }
+                    // נשמר כבינארי (Bytes) — רבע פחות מקום מטקסט base64; כללים ישנים — כטקסט כמו קודם
+                    const fileRef = fb.fs.doc(fb.db, 'tenants', T.slug, 'quotes', c.quoteId, 'pdf', 'file');
+                    try {
+                        try { await fb.fs.setDoc(fileRef, { pdfBin: fb.fs.Bytes.fromUint8Array(new Uint8Array(await pdfBlob.arrayBuffer())), at: fb.fs.serverTimestamp() }); }
+                        catch (e3) { await fb.fs.setDoc(fileRef, { pdfData, at: fb.fs.serverTimestamp() }); }
+                        await fb.fs.updateDoc(ref, { hasPdf: true });
+                    }
                     catch (e2) { await fb.fs.updateDoc(ref, { pdfData }); }
                 }
             }
