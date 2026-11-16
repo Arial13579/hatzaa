@@ -401,7 +401,7 @@
         await Promise.all([...el.querySelectorAll('img')].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; setTimeout(r, 2500); })));
         await new Promise(r => setTimeout(r, 200));
         let big;
-        try { big = await withTimeout(html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, width: PDF_W, windowWidth: PDF_W, x: 0, y: 0, scrollX: 0, scrollY: 0 }), 15000, null); }
+        try { big = await withTimeout(html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', logging: false, width: PDF_W, windowWidth: PDF_W, x: 0, y: 0, scrollX: 0, scrollY: 0 }), 15000, null); }
         finally { el.style.cssText = ''; }
         if (!big || big.height < 40) throw new Error('empty canvas');
         const { jsPDF } = window.jspdf;
@@ -415,7 +415,7 @@
             const sc = s.getContext('2d'); sc.fillStyle = '#fff'; sc.fillRect(0, 0, s.width, h);
             sc.drawImage(big, 0, y, big.width, h, 0, 0, big.width, h);
             if (page > 0) pdf.addPage();
-            pdf.addImage(s.toDataURL('image/jpeg', 0.95), 'JPEG', M, M, usableW, h / pxPerMm);
+            pdf.addImage(s.toDataURL('image/jpeg', 0.8), 'JPEG', M, M, usableW, h / pxPerMm);
             y += h; page++;
         }
         const blob = pdf.output('blob');
